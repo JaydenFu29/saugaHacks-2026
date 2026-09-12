@@ -57,14 +57,24 @@ export const config = {
   apiKey,
   hasApiKey: hasRealKey,
   baseUrl: (env.FEATHERLESS_BASE_URL || "https://api.featherless.ai/v1").replace(/\/+$/, ""),
-  model: env.FEATHERLESS_MODEL || "meta-llama/Meta-Llama-3.1-8B-Instruct",
+  // NOT a meta-llama/* id: those are gated behind a HuggingFace licence link and answer
+  // 403 even with a valid key. This one is open and is what the app is tuned against.
+  model: env.FEATHERLESS_MODEL || "Qwen/Qwen3-30B-A3B-Instruct-2507",
   /**
    * Separate model for camera frames — the guidance model is text-only and silently
-   * ignores images. Verified against this provider: Qwen2.5-VL-72B reads frames
-   * correctly (~1.7s); the 32B variant returned confidently wrong colours on a
-   * control image, so do not "downgrade" this for speed without re-testing.
+   * ignores images.
    */
-  visionModel: env.FEATHERLESS_VISION_MODEL || "Qwen/Qwen2.5-VL-72B-Instruct",
+  visionModel: env.FEATHERLESS_VISION_MODEL || "Qwen/Qwen2.5-VL-32B-Instruct",
+  /**
+   * Featherless takes vision models in and out of capacity constantly, and a 503
+   * "capacity_exhausted" on any one of them is routine rather than exceptional. Walking
+   * a short list means one busy model does not leave the assistant blind.
+   */
+  visionFallbacks: (env.FEATHERLESS_VISION_FALLBACKS ||
+    "Qwen/Qwen2.5-VL-72B-Instruct,Qwen/Qwen2.5-VL-7B-Instruct")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean),
   visionEnabled: String(env.VISION_ENABLED ?? "true").toLowerCase() !== "false",
   maxTokens: Number(env.FEATHERLESS_MAX_TOKENS) || 900, // room to fully teach a technique
   /** One short paragraph of observation is plenty, and keeps the frame turnaround fast. */
