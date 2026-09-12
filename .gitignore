@@ -5,6 +5,12 @@
 Thumbs.db
 Desktop.ini
 
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
 # VS Code
 .vscode/
 
@@ -21,9 +27,10 @@ venv/
 # Node
 node_modules/
 
-# Build files
+# Build output
 dist/
 build/
+out/
 
 # Logs
 *.log
