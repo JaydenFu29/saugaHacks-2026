@@ -1,0 +1,23 @@
+# Line endings: store AND check out LF everywhere, regardless of each contributor's
+# core.autocrlf setting. The team is on Windows and macOS — without this, a single
+# Windows setup with autocrlf=false commits CRLF and every touched file shows up as
+# fully changed (and conflicts) on the Mac.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF to run under cmd.exe.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary — never convert, never diff as text.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.pdf   binary
+*.zip   binary

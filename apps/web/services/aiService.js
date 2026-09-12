@@ -47,12 +47,14 @@ function serializeRequest(request) {
       // Trim to the last 20 turns — enough context, bounded payload.
       messages: s.messages.slice(-20).map((m) => ({ role: m.role, text: m.text, at: m.at })),
     },
+    // The frame itself is NOT resent here. It already went to /api/vision, and the
+    // guidance model is text-only — it would just be ~60KB of base64 per turn that
+    // nothing reads. `observedContext` is the vision model's output.
     visualContext: request.visualContext
       ? {
           observedContext: request.visualContext.observedContext,
           fromCamera: request.visualContext.fromCamera,
           at: request.visualContext.at,
-          frameDataUrl: request.visualContext.frameDataUrl || null,
         }
       : null,
   };
