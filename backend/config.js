@@ -66,7 +66,7 @@ export const config = {
    */
   visionModel: env.FEATHERLESS_VISION_MODEL || "Qwen/Qwen2.5-VL-72B-Instruct",
   visionEnabled: String(env.VISION_ENABLED ?? "true").toLowerCase() !== "false",
-  maxTokens: Number(env.FEATHERLESS_MAX_TOKENS) || 550, // room for real technique detail
+  maxTokens: Number(env.FEATHERLESS_MAX_TOKENS) || 900, // room to fully teach a technique
   /** One short paragraph of observation is plenty, and keeps the frame turnaround fast. */
   visionMaxTokens: Number(env.FEATHERLESS_VISION_MAX_TOKENS) || 160,
   /** Frames are time-critical: fail fast to the text-only path rather than stalling a turn. */
