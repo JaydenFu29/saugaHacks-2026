@@ -55,7 +55,8 @@ and the dot-cross mark are filler too — the mark is inline SVG in `index.html`
 - **Emergency button** → currently scrolls to the `#emergency` section. Point it at the
   `apps/web` session URL once that app exists (marked `TODO` in `index.html`).
 - **Contact form** → validates client-side, sends nothing. Needs a backend endpoint.
-- **Stats** (4 protocols / 30+ languages / 60s) → invented numbers, replace with real ones.
+- **Stats** (4 protocols / 15+ languages / 60s) → the language count is real (19 offered in
+  the emergency app's picker); protocols and 60s are still placeholders.
 
 ## Accessibility notes
 

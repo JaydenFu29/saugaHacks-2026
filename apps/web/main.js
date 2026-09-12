@@ -46,6 +46,20 @@ const endedSummary = document.getElementById("ended-summary");
 
 let busy = false;
 
+/* ── Language picker ──────────────────────────────────────────────────────
+   Speech recognition transcribes as whatever language it is told, so on "Auto" the
+   first spoken sentence is only correct if the user happens to speak the browser's
+   locale. Choosing here pins the microphone AND tells the assistant which language to
+   answer in, so turn one works instead of turn two. */
+const langSelect = document.getElementById("lang-select");
+/** @type {string} "" means auto-detect. */
+let preferredLanguage = "";
+
+langSelect.addEventListener("change", () => {
+  preferredLanguage = langSelect.value;
+  voice.pinLanguage(preferredLanguage || null);
+});
+
 /* ── wiring: session → UI ─────────────────────────────────────────────── */
 session.subscribe((s) => {
   assistantView.renderSession(s);
@@ -132,6 +146,7 @@ async function submitUserMessage(text) {
       userMessage: clean,
       emergencyContext: session.get(),
       visualContext,
+      preferredLanguage,
     });
 
     session.applyAIResponse(response);
@@ -143,8 +158,12 @@ async function submitUserMessage(text) {
         : "Demo assistant — scripted responses"
     );
 
-    // Speak it. If muted or synthesis is unavailable, the text is already on screen.
-    const started = speech.speak(response.message);
+    // Speak it in the language it was written in — a Chinese reply read by an English
+    // voice is unintelligible. If muted or synthesis is unavailable, the text is already
+    // on screen. Point the recognizer at the same language so the user's next spoken
+    // turn is transcribed correctly instead of as English-sounding nonsense.
+    if (response.language) voice.setLanguage(response.language);
+    const started = speech.speak(response.message, response.language);
     session.markSpoken(message.id);
     if (!started) session.setAssistantStatus("idle");
     renderAudio();

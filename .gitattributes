@@ -21,3 +21,6 @@
 *.woff2 binary
 *.pdf   binary
 *.zip   binary
+*.mp4   binary
+*.webm  binary
+*.mov   binary

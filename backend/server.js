@@ -14,6 +14,7 @@
 
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import { join, normalize, extname } from "node:path";
 import { config, describeConfig, REPO_ROOT } from "./config.js";
 import { generateResponse } from "./assistant.js";
@@ -32,6 +33,10 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
 };
@@ -100,9 +105,57 @@ async function serveStatic(req, res, pathname) {
       res.writeHead(302, { Location: `${pathname.replace(/\/$/, "")}/index.html` }).end();
       return;
     }
+    const type = MIME[extname(target).toLowerCase()] || "application/octet-stream";
+
+    // Video needs byte ranges: Safari will not play a <video> at all unless the server
+    // answers 206, and without this the whole 28MB hero file is buffered into memory on
+    // every single request. Streaming also means seeking works.
+    if (type.startsWith("video/")) {
+      const range = req.headers.range;
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range || "");
+
+      if (match) {
+        let start = match[1] === "" ? null : Number(match[1]);
+        let end = match[2] === "" ? null : Number(match[2]);
+        // A suffix range ("bytes=-500") means the LAST 500 bytes.
+        if (start === null) {
+          start = Math.max(0, info.size - (end || 0));
+          end = info.size - 1;
+        } else if (end === null || end >= info.size) {
+          end = info.size - 1;
+        }
+
+        if (start >= info.size || start > end) {
+          res.writeHead(416, { "Content-Range": `bytes */${info.size}` }).end();
+          return;
+        }
+
+        res.writeHead(206, {
+          "Content-Type": type,
+          "Content-Length": end - start + 1,
+          "Content-Range": `bytes ${start}-${end}/${info.size}`,
+          "Accept-Ranges": "bytes",
+          "Cache-Control": "no-store",
+        });
+        if (req.method === "HEAD") { res.end(); return; }
+        createReadStream(target, { start, end }).pipe(res);
+        return;
+      }
+
+      res.writeHead(200, {
+        "Content-Type": type,
+        "Content-Length": info.size,
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-store",
+      });
+      if (req.method === "HEAD") { res.end(); return; }
+      createReadStream(target).pipe(res);
+      return;
+    }
+
     const data = await readFile(target);
     res.writeHead(200, {
-      "Content-Type": MIME[extname(target).toLowerCase()] || "application/octet-stream",
+      "Content-Type": type,
       "Content-Length": data.length,
       "Cache-Control": "no-store", // always serve fresh during the hackathon
     });
@@ -158,6 +211,7 @@ const server = createServer(async (req, res) => {
         userMessage,
         context: payload.context || {},
         visualContext: payload.visualContext || null,
+        preferredLanguage: String(payload.preferredLanguage || "").slice(0, 20),
       });
 
       const ms = Date.now() - started;

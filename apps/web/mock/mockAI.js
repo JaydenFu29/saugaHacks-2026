@@ -95,6 +95,9 @@ export async function sendMessage(request) {
     urgency: next.urgency,
     actions,
     knownFacts: facts,
+    // The scripted fallback only speaks English; saying so keeps the voice layer from
+    // reading an English line with whatever voice the last real reply selected.
+    language: "en",
     source: "mock",
     audioUrl: null,
   };
@@ -114,6 +117,7 @@ export function greeting() {
     urgency: "moderate",
     actions: [],
     knownFacts: {},
+    language: "en",
     source: "mock",
     audioUrl: null,
   };
