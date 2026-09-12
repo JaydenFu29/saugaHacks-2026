@@ -128,6 +128,19 @@ a { color: var(--teal); }
   overflow: hidden;
 }
 
+/* A full first-aid instruction runs to a hundred words or more, and half a phone screen
+   cannot hold it. "Bigger text" drops the camera to a glance-sized strip — still live,
+   still framing the scene for the vision model — and hands the rest to the transcript. */
+.emergency[data-layout="text"] { grid-template-rows: auto 132px 1fr; }
+.emergency[data-layout="text"] .camera__controls { padding: 6px; gap: 5px; }
+.emergency[data-layout="text"] .camera__controls .cbtn {
+  min-height: 30px; padding: 4px 9px; font-size: 12px;
+}
+.emergency[data-layout="text"] .camera__zoomnote { display: none; }
+.emergency[data-layout="text"] .camera__fallback { padding: 8px 12px 44px; gap: 4px; }
+.emergency[data-layout="text"] .camera__fallback-title { font-size: 14px; }
+.emergency[data-layout="text"] .camera__fallback-text { display: none; }
+
 /* ── Status strip ── */
 .status {
   display: flex; align-items: center; gap: 8px;
@@ -222,8 +235,23 @@ a { color: var(--teal); }
   gap: 8px;
 }
 
-.assistant__head { display: flex; align-items: center; gap: 8px; flex: none; }
-.assistant__audio { margin-left: auto; display: flex; gap: 6px; }
+/* Five controls plus the state pill do not fit across a 375px phone, and "Stop" only
+   joins them while the assistant is speaking. Wrapping is the only thing that holds up
+   for every combination — and for translated labels, which are longer again. */
+.assistant__head {
+  display: flex; align-items: center; gap: 8px; flex: none;
+  flex-wrap: wrap; row-gap: 6px;
+}
+.assistant__audio {
+  margin-left: auto;
+  display: flex; gap: 6px;
+  flex-wrap: wrap; justify-content: flex-end;
+}
+
+/* Reclaim enough width on a narrow phone that they normally stay on one row. */
+@media (max-width: 420px) {
+  .assistant__head .cbtn { padding: 8px 9px; font-size: 12px; }
+}
 
 .state {
   display: inline-flex; align-items: center; gap: 6px;
@@ -261,11 +289,12 @@ a { color: var(--teal); }
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: 8px;
   padding-right: 2px;
   -webkit-overflow-scrolling: touch;
 }
-.msg { max-width: 92%; padding: 9px 12px; border-radius: 12px; font-size: 14px; }
+.msg { max-width: 96%; padding: 10px 12px; border-radius: 12px; font-size: 15px; line-height: 1.5; }
 .msg--user {
   align-self: flex-end;
   background: var(--ink-2);
@@ -280,7 +309,7 @@ a { color: var(--teal); }
 /* Latest assistant response stays readable and prominent */
 .msg--assistant.is-latest {
   color: var(--text);
-  font-size: 16px;
+  font-size: 17px;
   background: #14304D;
   border-color: #2B5A80;
 }
@@ -346,7 +375,7 @@ a { color: var(--teal); }
 /* Native option lists render on the OS surface, which is light on most platforms. */
 .langpick option { background: #fff; color: #111; }
 
-.composer { display: flex; gap: 6px; }
+.composer { display: flex; gap: 6px; align-items: flex-end; }
 .composer__input {
   flex: 1; min-width: 0;
   padding: 12px 14px;
@@ -355,10 +384,17 @@ a { color: var(--teal); }
   border: 1px solid var(--line);
   border-radius: 12px;
   font-family: inherit; font-size: 15px;
+  /* Sized in JS to fit its content, then scrolls. The drag handle would fight that. */
+  line-height: 1.4;
+  resize: none;
+  max-height: 7.5em;
+  overflow-y: auto;
 }
 .composer__input::placeholder { color: #64748B; }
 .composer__input:focus { outline: none; border-color: var(--teal); }
 .composer__send {
+  flex: none;
+  min-height: 46px;
   padding: 12px 18px;
   background: var(--teal); color: #04222B;
   border: 0; border-radius: 12px;
@@ -406,6 +442,12 @@ a { color: var(--teal); }
     grid-template-rows: auto 1fr;
     grid-template-columns: 1fr 1fr;
   }
+  /* Side by side, "bigger text" narrows the camera column rather than flattening it. */
+  .emergency[data-layout="text"] {
+    grid-template-rows: auto 1fr;
+    grid-template-columns: 300px 1fr;
+  }
+  .emergency[data-layout="text"] .camera__controls { padding: 10px; gap: 6px; }
   .status { grid-column: 1 / -1; }
   .assistant { border-top: 0; border-left: 1px solid var(--line); }
 }

@@ -27,11 +27,31 @@ export function createAssistantView() {
   const btnStopAudio = /** @type {HTMLButtonElement} */ (document.getElementById("btn-stop-audio"));
   const btnMic = /** @type {HTMLButtonElement} */ (document.getElementById("btn-mic"));
   const micLabel = document.getElementById("mic-label");
-  const textInput = /** @type {HTMLInputElement} */ (document.getElementById("text-input"));
+  const textInput = /** @type {HTMLTextAreaElement} */ (document.getElementById("text-input"));
   const btnSend = /** @type {HTMLButtonElement} */ (document.getElementById("btn-send"));
 
   /** Track rendered message ids so we append instead of rebuilding the list. */
   const rendered = new Set();
+
+  /**
+   * Grow the composer to fit what is in it, up to the max-height in the stylesheet,
+   * after which it scrolls. Reset to `auto` first or scrollHeight only ever grows.
+   */
+  function autosize() {
+    textInput.style.height = "auto";
+    // A hidden element measures 0 — leave the natural height alone rather than
+    // collapsing the box to nothing before the panel is on screen.
+    if (textInput.scrollHeight > 0) textInput.style.height = `${textInput.scrollHeight}px`;
+  }
+
+  // Enter sends, Shift+Enter makes a new line. A textarea does not submit its form on
+  // Enter the way an <input> does, so this has to be wired by hand.
+  textInput.addEventListener("input", autosize);
+  textInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+    e.preventDefault();
+    if (!btnSend.disabled) btnSend.form?.requestSubmit();
+  });
 
   /** @param {import("../types/emergency.js").EmergencySession} session */
   function renderSession(session) {
@@ -144,6 +164,7 @@ export function createAssistantView() {
 
     clearInput() {
       textInput.value = "";
+      autosize();
     },
 
     /** Append a finished speech transcript to whatever is already in the composer. */
@@ -152,6 +173,7 @@ export function createAssistantView() {
       if (!addition) return;
       const existing = textInput.value.trim();
       textInput.value = existing ? `${existing} ${addition}` : addition;
+      autosize();
       // Keep the caret at the end so the user can carry on typing or hit Send.
       try {
         textInput.focus({ preventScroll: true });

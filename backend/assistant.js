@@ -146,7 +146,7 @@ function resolveLanguage(claimed, message, userText, preferred) {
 }
 
 /**
- * The forced 911 reminder has to be in the same language as the reply it is prefixed to.
+ * The forced 911 reminder has to be in the same language as the reply it is attached to.
  * Covers the languages most likely at a Mississauga demo; anything else gets English,
  * which is still better than dropping the reminder entirely.
  */
@@ -205,6 +205,13 @@ export async function generateResponse(payload) {
       ? obj.knownFacts
       : {};
 
+  // Whether the USER said they called is the only thing that settles this, in either
+  // direction — see both guards below.
+  const said = String(payload.userMessage || "");
+  const userConfirmedCall =
+    /\b(i|we)\b[^.?!]{0,25}\b(called|calling|phoned|dialed|dialled)\b[^.?!]{0,20}\b(911|9-1-1|ambulance|emergency)\b/i.test(said) ||
+    /\b(911|ambulance|paramedics|dispatcher)\b[^.?!]{0,25}\b(on the (phone|line|way)|coming|here|en route|answered)\b/i.test(said);
+
   // The model routinely encodes "I told them to call 911" as "they called 911". That
   // fabricated fact then comes back as established (buildContextBlock renders known facts
   // as "do NOT ask about these again"), so the assistant stops prompting and starts
@@ -212,13 +219,15 @@ export async function generateResponse(payload) {
   const priorCalled = (context.knownFacts || {}).emergencyServicesCalled;
   if ("emergencyServicesCalled" in knownFacts) {
     const claimed = String(knownFacts.emergencyServicesCalled).toLowerCase();
-    const said = String(payload.userMessage || "");
-    const userConfirmed =
-      /\b(i|we)\b[^.?!]{0,25}\b(called|calling|phoned|dialed|dialled)\b[^.?!]{0,20}\b(911|9-1-1|ambulance|emergency)\b/i.test(said) ||
-      /\b(911|ambulance|paramedics|dispatcher)\b[^.?!]{0,25}\b(on the (phone|line|way)|coming|here|en route|answered)\b/i.test(said);
-    if (claimed === "yes" && !userConfirmed && priorCalled !== "yes") {
+    if (claimed === "yes" && !userConfirmedCall && priorCalled !== "yes") {
       knownFacts.emergencyServicesCalled = priorCalled || "unknown";
     }
+  } else if (userConfirmedCall) {
+    // The mirror image, and the one the user actually notices: they say "I called 911,
+    // they're on the way", the model forgets to record it, and the reminder below fires
+    // anyway — so the assistant nags about calling an ambulance that is already coming.
+    // Record it here so this turn and every later one treat the call as made.
+    knownFacts.emergencyServicesCalled = "yes";
   }
 
   const urgency = enforceUrgency(obj.urgency, haystack);
@@ -233,15 +242,25 @@ export async function generateResponse(payload) {
     payload.preferredLanguage
   );
 
-  // While the scene is critical and no call is confirmed, re-raise it every single turn.
-  // The model reliably says it once on turn 1 and then never mentions it again.
+  // While the scene is critical and no call is confirmed, keep the reminder alive — the
+  // model reliably says it once on turn 1 and then never mentions it again.
+  // WHERE it goes matters, though. The first time, it has to be the first thing they
+  // hear. Every turn after that, prefixing it makes the assistant sound like it is
+  // stalling — the user hears "call 911" again instead of the instruction they are
+  // waiting for — so it trails the guidance instead of leading it.
   // "911" stays as digits in every language (the prompt requires it), so this test works
   // regardless of what language `message` is written in.
   const called = knownFacts.emergencyServicesCalled ?? priorCalled;
-  const finalMessage =
-    urgency === "critical" && called !== "yes" && !/\b911\b/.test(message)
-      ? `${callPrompt(language)} ${message}`
-      : message;
+  const alreadyRaised = (Array.isArray(context.messages) ? context.messages : []).some(
+    (m) => m && m.role === "assistant" && /\b911\b/.test(String(m.text || ""))
+  );
+
+  let finalMessage = message;
+  if (urgency === "critical" && called !== "yes" && !/\b911\b/.test(message)) {
+    finalMessage = alreadyRaised
+      ? `${message} ${callPrompt(language)}`
+      : `${callPrompt(language)} ${message}`;
+  }
 
   const newActions = Array.isArray(obj.actions)
     ? obj.actions.map((a) => cleanSpoken(a)).filter(Boolean)

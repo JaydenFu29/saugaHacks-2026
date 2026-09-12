@@ -48,7 +48,7 @@
 </section>
 
 <!-- ═══════════════════ EMERGENCY PAGE ═══════════════════ -->
-<main class="emergency" id="emergency" hidden>
+<main class="emergency" id="emergency" data-layout="split" hidden>
 
   <!-- Status strip -->
   <header class="status" id="status">
@@ -89,6 +89,10 @@
         <span class="state__dot"></span><span id="assistant-state-text">Idle</span>
       </span>
       <div class="assistant__audio">
+        <!-- Half a phone screen is not much room for a 120-word instruction. This shrinks
+             the camera to a glance-sized strip and gives the rest to the text. -->
+        <button class="cbtn" id="btn-layout" type="button"
+                title="Give the assistant's text more room">Bigger text</button>
         <button class="cbtn" id="btn-mute" type="button" title="Mute assistant audio">Mute</button>
         <button class="cbtn" id="btn-replay" type="button" title="Replay last response">Replay</button>
         <button class="cbtn" id="btn-stop-audio" type="button" title="Stop audio" hidden>Stop</button>
@@ -145,15 +149,18 @@
         <option value="ja">日本語 · Japanese</option>
       </select>
 
+      <!-- A textarea, not an <input>: dictation produces long sentences, and the user
+           has to be able to read what was transcribed before sending it. It grows to fit
+           and then scrolls. Enter sends; Shift+Enter starts a new line. -->
       <form class="composer" id="composer">
         <label class="sr-only" for="text-input">Type a message to the assistant</label>
-        <input
+        <textarea
           class="composer__input"
           id="text-input"
-          type="text"
+          rows="1"
           placeholder="…or type what's happening"
           autocomplete="off"
-        >
+        ></textarea>
         <button class="composer__send" id="btn-send" type="submit">Send</button>
       </form>
     </div>

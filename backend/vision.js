@@ -69,27 +69,46 @@ export async function describeFrame(dataUrl) {
     throw new ProviderError("Vision is disabled (VISION_ENABLED=false)", { status: 503 });
   }
 
-  const { text, model, usage } = await chatCompletion(
-    [
-      { role: "system", content: VISION_PROMPT },
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "Describe what is visible in this frame." },
-          { type: "image_url", image_url: { url: dataUrl } },
-        ],
-      },
-    ],
+  const messages = [
+    { role: "system", content: VISION_PROMPT },
     {
-      model: config.visionModel,
-      maxTokens: config.visionMaxTokens,
-      timeoutMs: config.visionTimeoutMs,
-      // Describing a scene is not creative writing; keep it literal.
-      temperature: 0.1,
-      // Prose, not JSON — and the VL models honour json_object poorly.
-      jsonMode: false,
+      role: "user",
+      content: [
+        { type: "text", text: "Describe what is visible in this frame." },
+        { type: "image_url", image_url: { url: dataUrl } },
+      ],
+    },
+  ];
+
+  // A 503 "capacity_exhausted" on a vision model is routine on this provider, not
+  // exceptional. Walk the fallback list rather than letting one busy model blind the
+  // assistant for the rest of the session.
+  const candidates = [...new Set([config.visionModel, ...config.visionFallbacks])];
+  let lastErr = null;
+  let result = null;
+
+  for (const candidate of candidates) {
+    try {
+      result = await chatCompletion(messages, {
+        model: candidate,
+        maxTokens: config.visionMaxTokens,
+        timeoutMs: config.visionTimeoutMs,
+        // Describing a scene is not creative writing; keep it literal.
+        temperature: 0.1,
+        // Prose, not JSON — and the VL models honour json_object poorly.
+        jsonMode: false,
+      });
+      break;
+    } catch (err) {
+      lastErr = err;
+      const retryable = /capacity|temporarily|rate limit|timed out|5\d\d/i.test(err.message || "");
+      if (!retryable) throw err;
+      console.warn(`[vision] ${candidate} unavailable, trying next: ${err.message.slice(0, 80)}`);
     }
-  );
+  }
+
+  if (!result) throw lastErr || new ProviderError("No vision model available", { status: 503 });
+  const { text, model, usage } = result;
 
   const observedContext = text
     .replace(/```[\s\S]*?```/g, " ")

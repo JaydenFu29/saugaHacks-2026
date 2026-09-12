@@ -81,12 +81,14 @@ function readBody(req) {
 }
 
 async function serveStatic(req, res, pathname) {
-  // Default to the emergency app; `/site/` serves the marketing page.
-  // Redirect (rather than serve the file inline) so the browser's URL becomes
-  // /web/, and index.html's relative asset paths (styles.css, main.js) resolve
-  // to /web/styles.css, /web/main.js instead of 404ing at the root.
+  // The root is the HOMEPAGE. Landing straight on the emergency app meant the first
+  // thing a visitor saw was a camera permission prompt, with no idea what the product
+  // was; the Emergency button on the homepage is what opens /web/.
+  // Redirect (rather than serve the file inline) so the browser's URL becomes /site/,
+  // and index.html's relative asset paths (styles.css, script.js) resolve to
+  // /site/styles.css instead of 404ing at the root.
   if (pathname === "/") {
-    res.writeHead(302, { Location: "/web/" }).end();
+    res.writeHead(302, { Location: "/site/" }).end();
     return;
   }
   let rel = pathname;
@@ -287,8 +289,8 @@ server.listen(config.port, () => {
   const info = describeConfig();
   console.log(`\n  Emergency assistant backend`);
   console.log(`  ──────────────────────────────────────────────`);
+  console.log(`  Homepage        http://localhost:${config.port}/`);
   console.log(`  Emergency app   http://localhost:${config.port}/web/index.html`);
-  console.log(`  Site            http://localhost:${config.port}/site/index.html`);
   console.log(`  Health          http://localhost:${config.port}/api/health`);
   console.log(`  Model           ${info.model}`);
   console.log(`  Vision model    ${info.visionModel || "disabled"}`);

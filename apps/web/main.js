@@ -223,6 +223,33 @@ document.getElementById("gate-skip").addEventListener("click", () => {
   enterEmergency({ requestDevices: false });
 });
 
+/* ── layout: split view vs. bigger text ───────────────────────────────────
+   A fully-described first-aid technique runs well over a hundred words, which does not
+   fit in half a phone screen. This trades camera height for reading room. The camera
+   keeps running either way, so the vision model still sees the scene. */
+const LAYOUT_KEY = "aidlive.layout";
+const btnLayout = document.getElementById("btn-layout");
+
+/** @param {"split"|"text"} mode */
+function setLayout(mode) {
+  emergencyEl.dataset.layout = mode;
+  btnLayout.textContent = mode === "text" ? "Show camera" : "Bigger text";
+  btnLayout.title =
+    mode === "text"
+      ? "Go back to the split camera view"
+      : "Give the assistant's text more room";
+  btnLayout.dataset.on = String(mode === "text");
+  try {
+    localStorage.setItem(LAYOUT_KEY, mode);
+  } catch {
+    /* private browsing can refuse storage — the toggle still works for this session */
+  }
+}
+
+btnLayout.addEventListener("click", () => {
+  setLayout(emergencyEl.dataset.layout === "text" ? "split" : "text");
+});
+
 /* ── assistant controls ───────────────────────────────────────────────── */
 const { btnMute, btnReplay, btnStopAudio, btnMic } = assistantView.elements;
 
@@ -306,6 +333,14 @@ document.addEventListener("keydown", (e) => {
 });
 
 /* ── initial paint ────────────────────────────────────────────────────── */
+let savedLayout = null;
+try {
+  savedLayout = localStorage.getItem(LAYOUT_KEY);
+} catch {
+  /* storage unavailable — fall back to the default split */
+}
+setLayout(savedLayout === "text" ? "text" : "split");
+
 assistantView.renderVoice(voice.getState());
 renderAudio();
 cameraView.render(camera.getState());
