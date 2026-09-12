@@ -229,10 +229,23 @@ export function createCameraService() {
   }
 
   return {
-    /** @param {HTMLVideoElement} el */
+    /**
+     * @param {HTMLVideoElement} el
+     * Attach may happen AFTER start() — in React the <video> only exists once the
+     * emergency view has rendered, by which point the stream is already open. So this
+     * must also kick off playback, otherwise the element holds a stream that never
+     * plays and videoWidth stays 0 (which silently breaks frame capture too).
+     */
     attach(el) {
       videoEl = el;
-      if (stream) el.srcObject = stream;
+      if (!stream) return;
+      el.srcObject = stream;
+      const go = el.play();
+      if (go && typeof go.catch === "function") {
+        go.catch(() => {
+          /* autoplay can reject before a user gesture; the stream is still attached */
+        });
+      }
     },
     start,
     stop,

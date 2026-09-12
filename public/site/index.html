@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<title>AidLive — Live AI First Aid Guidance</title>
+<meta name="description" content="AidLive guides an untrained bystander through an emergency with live camera assessment, spoken step-by-step first aid, and instant translation.">
+
+<!-- Satoshi (headings) via Fontshare, Inter (UI/body) via Google Fonts — matches the reference type pairing. -->
+<link rel="preconnect" href="https://api.fontshare.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!-- Fixed blur veil behind the nav, as on the reference site -->
+<div class="top-blur" aria-hidden="true"></div>
+
+<header class="nav" id="nav">
+  <a class="brand" href="#top" aria-label="AidLive — home">
+    <!-- Dot-grid mark in a first-aid cross (filler branding) -->
+    <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="4"  r="2.1"/>
+      <circle cx="12" cy="12" r="2.1"/>
+      <circle cx="12" cy="20" r="2.1"/>
+      <circle cx="4"  cy="12" r="2.1"/>
+      <circle cx="20" cy="12" r="2.1"/>
+    </svg>
+    <span class="brand__word">AidLive</span>
+  </a>
+
+  <nav class="nav__links" aria-label="Main">
+    <a href="#top" class="nav__link is-current">Homepage</a>
+    <a href="#how-it-works" class="nav__link">How It Works</a>
+    <a href="#contact" class="nav__link">Contact</a>
+  </nav>
+
+  <a href="../web/index.html" class="btn btn--emergency" data-emergency>
+    <span class="btn__pulse" aria-hidden="true"></span>
+    Emergency
+  </a>
+
+  <button class="nav__toggle" aria-expanded="false" aria-controls="nav-mobile" aria-label="Open menu">
+    <span></span><span></span>
+  </button>
+</header>
+
+<div class="nav-mobile" id="nav-mobile" hidden>
+  <a href="#top">Homepage</a>
+  <a href="#how-it-works">How It Works</a>
+  <a href="#contact">Contact</a>
+  <a href="../web/index.html" class="nav-mobile__emergency">Emergency</a>
+</div>
+
+<main id="main">
+  <span id="top"></span>
+
+  <!-- ───────────────────────── HERO ───────────────────────── -->
+  <section class="hero">
+    <div class="hero__bg">
+      <!-- Poster paints immediately and stays visible until the video can play, so the
+           hero is never a blank box on a slow connection. `playsinline` keeps iOS from
+           hijacking it into fullscreen; `muted` is what makes autoplay legal at all. -->
+      <video
+        class="hero__video"
+        src="assets/hero.mp4"
+        poster="assets/hero-poster.jpg"
+        autoplay muted loop playsinline
+        preload="metadata"
+        aria-hidden="true"
+        tabindex="-1"></video>
+      <div class="hero__scrim"></div>
+    </div>
+
+    <div class="hero__inner">
+      <h1 class="hero__title">
+        <span class="line" data-anim="rise"><span>Calm Guidance</span></span>
+        <span class="line line--offset" data-anim="rise" data-delay="1"><span>When It Counts</span></span>
+      </h1>
+
+      <div class="hero__lede" data-anim="rise" data-delay="2">
+        <p>AidLive talks an untrained<br>bystander through the first<br>critical minutes.</p>
+      </div>
+
+      <div class="hero__actions" data-anim="rise" data-delay="3">
+        <a class="btn btn--emergency btn--lg" href="../web/index.html">Start Emergency Session</a>
+        <a class="btn btn--ghost btn--lg" href="#how-it-works">Learn more</a>
+      </div>
+    </div>
+
+    <div class="hero__stats" data-anim="rise" data-delay="4">
+      <div class="stat">
+        <h2 class="stat__num" data-count="4" data-suffix="">0</h2>
+        <p class="stat__label">Guided protocols</p>
+      </div>
+      <div class="stat">
+        <h2 class="stat__num" data-count="15" data-suffix="+">0</h2>
+        <p class="stat__label">Languages spoken</p>
+      </div>
+      <div class="stat">
+        <h2 class="stat__num" data-count="60" data-suffix="s">0</h2>
+        <p class="stat__label">To first instruction</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── STATEMENT ───────────────────────── -->
+  <section class="statement section">
+    <p class="eyebrow" data-anim="fade"><span class="dot"></span>Why AidLive</p>
+    <h2 class="display" data-anim="rise">
+      Most people freeze because they don't know
+      what to do first. AidLive removes the guessing.
+    </h2>
+    <div class="statement__cols">
+      <p data-anim="rise" data-delay="1">Point a camera. Speak in any language. AidLive reads the
+        scene, matches it against vetted first-aid protocols, and says the next step out loud —
+        one action at a time.</p>
+      <p data-anim="rise" data-delay="2">It never rushes and never guesses. When the situation is
+        beyond first aid, it says so, and hands the dispatcher a clean summary of everything that
+        happened.</p>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── HOW IT WORKS (sticky/pinned) ───────────────────────── -->
+  <section class="how section" id="how-it-works">
+    <p class="eyebrow" data-anim="fade"><span class="dot"></span>How It Works</p>
+    <h2 class="display display--center" data-anim="rise">
+      A measured four-step<br>process, guided out loud.
+    </h2>
+
+    <div class="how__grid">
+      <!-- Sticky media column: swaps as each step scrolls into view -->
+      <div class="how__media">
+        <div class="how__media-inner">
+          <img class="how__img is-active" src="assets/step-01-assessment.jpg"
+               alt="A first-aid kit laid open, ready to use." data-step="1">
+          <img class="how__img" src="assets/step-02-translate.jpg"
+               alt="A first-aid training session in progress." data-step="2" loading="lazy">
+          <img class="how__img" src="assets/step-03-guided-action.jpg"
+               alt="Hands practising a guided first-aid technique." data-step="3" loading="lazy">
+          <img class="how__img" src="assets/step-04-handoff.png"
+               alt="An ambulance responding to a call." data-step="4" loading="lazy">
+          <svg class="how__mark" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="9"  cy="6"  r="1.7"/><circle cx="15" cy="6"  r="1.7"/>
+            <circle cx="9"  cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/>
+            <circle cx="9"  cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Step rows -->
+      <ol class="how__steps">
+        <li class="step" data-step="1">
+          <div class="step__body">
+            <h3 class="step__title">Initial Assessment</h3>
+            <p class="step__text">Point your camera at the scene. AidLive describes what it sees
+              and asks only the questions that change what you do next.</p>
+          </div>
+          <span class="step__num">01</span>
+        </li>
+        <li class="step" data-step="2">
+          <div class="step__body">
+            <h3 class="step__title">Listen &amp; Translate</h3>
+            <p class="step__text">Speak in whatever language comes out under stress. AidLive
+              understands it and answers back in that same language, out loud.</p>
+          </div>
+          <span class="step__num">02</span>
+        </li>
+        <li class="step" data-step="3">
+          <div class="step__body">
+            <h3 class="step__title">Guided Action</h3>
+            <p class="step__text">One instruction at a time, spoken and shown — with an image
+              marking exactly where on the body it applies.</p>
+          </div>
+          <span class="step__num">03</span>
+        </li>
+        <li class="step" data-step="4">
+          <div class="step__body">
+            <h3 class="step__title">Handoff to 911</h3>
+            <p class="step__text">A concise summary — condition, actions taken, location, timeline
+              — ready to read aloud the moment a dispatcher picks up.</p>
+          </div>
+          <span class="step__num">04</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── CAPABILITIES ───────────────────────── -->
+  <section class="caps section">
+    <p class="eyebrow" data-anim="fade"><span class="dot"></span>Built For The Worst Minute</p>
+    <div class="caps__grid">
+      <article class="cap" data-anim="rise">
+        <h3 class="cap__title">Live<br>Translation</h3>
+        <p class="cap__text">Two-way speech in 15+ languages, so language is never the reason help
+          arrives late.</p>
+      </article>
+      <article class="cap" data-anim="rise" data-delay="1">
+        <h3 class="cap__title">Camera<br>Assessment</h3>
+        <p class="cap__text">Reads the scene for visible signs and relays what it sees in plain
+          language.</p>
+      </article>
+      <article class="cap" data-anim="rise" data-delay="2">
+        <h3 class="cap__title">Spoken<br>Steps</h3>
+        <p class="cap__text">Shown and narrated at once, so you never look away from the patient
+          to read.</p>
+      </article>
+      <article class="cap" data-anim="rise" data-delay="3">
+        <h3 class="cap__title">911<br>Summary</h3>
+        <p class="cap__text">Every detail captured while you were busy, condensed into one
+          readable paragraph.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── SAFETY NOTE ───────────────────────── -->
+  <section class="safety section">
+    <div class="safety__card" data-anim="rise">
+      <p class="eyebrow eyebrow--light"><span class="dot dot--red"></span>Important</p>
+      <h2 class="title-34">AidLive is guidance, not a<br>substitute for emergency services.</h2>
+      <p class="safety__text">Always call your local emergency number first. AidLive is built to
+        keep a bystander useful while professional help is on its way — it defers to a dispatcher
+        or clinician every time.</p>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── EMERGENCY CTA ───────────────────────── -->
+  <section class="emergency section" id="emergency">
+    <p class="eyebrow" data-anim="fade"><span class="dot dot--red"></span>Start Now</p>
+    <h2 class="display display--center" data-anim="rise">Open a session and<br>start talking.</h2>
+    <p class="emergency__sub" data-anim="rise" data-delay="1">No account, no setup. The assistant
+      starts listening the moment you open it.</p>
+    <a class="btn btn--emergency btn--xl" href="../web/index.html" data-anim="rise" data-delay="2">
+      Start Emergency Session
+    </a>
+    <p class="emergency__note" data-anim="fade" data-delay="3">Opens the live assistant. Camera and
+      microphone permission is requested on the next screen.</p>
+  </section>
+
+  <!-- ───────────────────────── CONTACT ───────────────────────── -->
+  <section class="contact section" id="contact">
+    <div class="contact__grid">
+      <div class="contact__intro">
+        <p class="eyebrow" data-anim="fade"><span class="dot"></span>Contact</p>
+        <h2 class="display" data-anim="rise">Talk to the<br>team.</h2>
+        <p class="contact__text" data-anim="rise" data-delay="1">Questions about protocols,
+          accessibility, or bringing AidLive to your organisation — send a note.</p>
+        <div class="contact__meta" data-anim="fade" data-delay="2">
+          <p><span>Email</span>hello@aidlive.example</p>
+          <p><span>Built at</span>saugaHacks 2026</p>
+        </div>
+      </div>
+
+      <form class="form" data-anim="rise" data-delay="1" novalidate>
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" autocomplete="name" required>
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required>
+        </div>
+        <div class="field">
+          <label for="message">Message</label>
+          <textarea id="message" name="message" rows="4" required></textarea>
+        </div>
+        <button class="btn btn--dark btn--lg" type="submit">Send message</button>
+        <p class="form__status" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="footer__top">
+    <a class="brand brand--footer" href="#top" aria-label="AidLive — home">
+      <svg class="brand__mark" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="4"  r="2.1"/><circle cx="12" cy="12" r="2.1"/>
+        <circle cx="12" cy="20" r="2.1"/><circle cx="4"  cy="12" r="2.1"/>
+        <circle cx="20" cy="12" r="2.1"/>
+      </svg>
+      <span class="brand__word">AidLive</span>
+    </a>
+    <nav class="footer__links" aria-label="Footer">
+      <a href="#top">Homepage</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#contact">Contact</a>
+      <a href="../web/index.html">Emergency</a>
+    </nav>
+  </div>
+  <div class="footer__base">
+    <p>saugaHacks 2026 — prototype. Not a medical device.</p>
+    <p>In a real emergency, call your local emergency number.</p>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

@@ -64,7 +64,11 @@ export const config = {
    * correctly (~1.7s); the 32B variant returned confidently wrong colours on a
    * control image, so do not "downgrade" this for speed without re-testing.
    */
-  visionModel: env.FEATHERLESS_VISION_MODEL || "Qwen/Qwen2.5-VL-72B-Instruct",
+  visionModel: env.FEATHERLESS_VISION_MODEL || "Qwen/Qwen2.5-VL-32B-Instruct",
+  /** Tried in order when the primary reports capacity exhaustion. */
+  visionFallbacks: (env.FEATHERLESS_VISION_FALLBACKS ||
+    "Qwen/Qwen2.5-VL-72B-Instruct,Qwen/Qwen2.5-VL-7B-Instruct")
+    .split(",").map((m) => m.trim()).filter(Boolean),
   visionEnabled: String(env.VISION_ENABLED ?? "true").toLowerCase() !== "false",
   maxTokens: Number(env.FEATHERLESS_MAX_TOKENS) || 900, // room to fully teach a technique
   /** One short paragraph of observation is plenty, and keeps the frame turnaround fast. */
