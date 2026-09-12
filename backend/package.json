@@ -1,0 +1,12 @@
+{
+  "name": "aidlive-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Emergency assistant backend — proxies the browser to Featherless AI and keeps the API key server-side.",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  }
+}

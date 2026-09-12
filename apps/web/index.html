@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F172A">
+<title>Emergency Assistant — AidLive</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ═══════════════════ PERMISSION GATE ═══════════════════
+     Shown before anything else. getUserMedia is called from this button's click so the
+     request is tied to a user gesture, and so we can explain why first. -->
+<section class="gate" id="gate">
+  <div class="gate__inner">
+    <p class="gate__kicker">Emergency Assistant</p>
+    <h1 class="gate__title">Before we start</h1>
+
+    <ul class="gate__reasons">
+      <li>
+        <strong>Camera</strong>
+        <span>Lets the assistant understand the situation around you.</span>
+      </li>
+      <li>
+        <strong>Microphone</strong>
+        <span>Lets you talk to the assistant hands-free, so you can keep helping.</span>
+      </li>
+    </ul>
+
+    <p class="gate__note">
+      Nothing is recorded or uploaded in this prototype. You can continue without either
+      one — typing always works.
+    </p>
+
+    <button class="btn btn--emergency btn--block" id="gate-allow" type="button">
+      Allow camera &amp; microphone
+    </button>
+    <button class="btn btn--quiet btn--block" id="gate-skip" type="button">
+      Continue without them
+    </button>
+
+    <p class="gate__911">
+      For life-threatening emergencies, <a href="tel:911">call 911</a> now.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════ EMERGENCY PAGE ═══════════════════ -->
+<main class="emergency" id="emergency" hidden>
+
+  <!-- Status strip -->
+  <header class="status" id="status">
+    <span class="status__live" id="status-live">
+      <span class="status__dot"></span>Emergency active
+    </span>
+    <span class="chip" id="chip-camera" data-state="idle">Camera</span>
+    <span class="chip" id="chip-mic" data-state="idle">Mic</span>
+    <button class="status__end" id="btn-end" type="button">End</button>
+  </header>
+
+  <!-- ── TOP ~50%: CAMERA ── -->
+  <section class="camera" id="camera-panel">
+    <video class="camera__video" id="video" playsinline autoplay muted></video>
+
+    <!-- Shown when the camera can't run. The assistant below keeps working regardless. -->
+    <div class="camera__fallback" id="camera-fallback" hidden>
+      <p class="camera__fallback-title" id="camera-fallback-title">Camera unavailable</p>
+      <p class="camera__fallback-text" id="camera-fallback-text"></p>
+      <button class="btn btn--ghost btn--sm" id="btn-camera-retry" type="button">Try Again</button>
+    </div>
+
+    <div class="camera__controls">
+      <button class="cbtn" id="btn-flip" type="button" title="Switch camera">Flip</button>
+      <button class="cbtn" id="btn-zoom-out" type="button" title="Zoom out">Zoom −</button>
+      <button class="cbtn" id="btn-zoom-in" type="button" title="Zoom in">Zoom +</button>
+      <button class="cbtn" id="btn-camera-toggle" type="button" title="Turn camera off">Camera</button>
+    </div>
+
+    <p class="camera__zoomnote" id="camera-zoomnote" hidden>Zoom not supported on this camera</p>
+  </section>
+
+  <!-- ── BOTTOM ~50%: AI ASSISTANT ── -->
+  <section class="assistant" id="assistant-panel">
+
+    <div class="assistant__head">
+      <span class="state" id="assistant-state" data-state="idle">
+        <span class="state__dot"></span><span id="assistant-state-text">Idle</span>
+      </span>
+      <div class="assistant__audio">
+        <button class="cbtn" id="btn-mute" type="button" title="Mute assistant audio">Mute</button>
+        <button class="cbtn" id="btn-replay" type="button" title="Replay last response">Replay</button>
+        <button class="cbtn" id="btn-stop-audio" type="button" title="Stop audio" hidden>Stop</button>
+      </div>
+    </div>
+
+    <!-- The single most important thing on the page: what to do right now. -->
+    <div class="instruction" id="instruction" hidden>
+      <p class="instruction__label">Do this now</p>
+      <p class="instruction__text" id="instruction-text"></p>
+    </div>
+
+    <!-- Latest assistant response, prominent, plus scrollable history above it. -->
+    <div class="conversation" id="conversation" aria-live="polite" aria-atomic="false"></div>
+
+    <p class="interim" id="interim" hidden></p>
+
+    <div class="controls">
+      <button class="mic" id="btn-mic" type="button" aria-pressed="false">
+        <span class="mic__icon" aria-hidden="true">🎤</span>
+        <span class="mic__label" id="mic-label">Tap to talk</span>
+      </button>
+
+      <form class="composer" id="composer">
+        <label class="sr-only" for="text-input">Type a message to the assistant</label>
+        <input
+          class="composer__input"
+          id="text-input"
+          type="text"
+          placeholder="…or type what's happening"
+          autocomplete="off"
+        >
+        <button class="composer__send" id="btn-send" type="submit">Send</button>
+      </form>
+    </div>
+
+    <p class="footnote">
+      <span id="ai-source-note">Demo assistant — scripted responses</span>
+      · For life-threatening emergencies, <a href="tel:911">call 911</a>.
+    </p>
+  </section>
+</main>
+
+<!-- ═══════════════════ END CONFIRMATION ═══════════════════ -->
+<div class="confirm" id="confirm" hidden>
+  <div class="confirm__box" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <h2 class="confirm__title" id="confirm-title">End this emergency session?</h2>
+    <p class="confirm__text">
+      The assistant will stop, and the camera and microphone will be released.
+    </p>
+    <button class="btn btn--dark btn--block" id="btn-continue" type="button">Continue Emergency</button>
+    <button class="btn btn--emergency btn--block" id="btn-confirm-end" type="button">End Emergency</button>
+  </div>
+</div>
+
+<!-- ═══════════════════ ENDED ═══════════════════ -->
+<section class="ended" id="ended" hidden>
+  <div class="ended__inner">
+    <h2 class="ended__title">Session ended</h2>
+    <p class="ended__text" id="ended-summary"></p>
+    <a class="btn btn--dark btn--block" href="../site/index.html">Back to site</a>
+    <button class="btn btn--quiet btn--block" id="btn-restart" type="button">Start a new session</button>
+  </div>
+</section>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
