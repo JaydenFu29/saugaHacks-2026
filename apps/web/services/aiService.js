@@ -1,27 +1,56 @@
 /**
- * AI service — the single boundary between the UI and any model.
+ * AI service — the single boundary between the UI and the model.
  *
  * Architecture (deliberate): Frontend → OUR backend → AI provider.
- * The frontend never calls a vendor API and never holds a key. `AI_ENDPOINT` points at
- * our own backend, which the Backend Lead implements per DEVELOPMENT.md §2.
+ * The frontend never calls a vendor API and never holds a key.
  *
- * Until that endpoint exists, every call transparently falls back to the mock provider,
- * so the whole experience is demoable today and becomes real with zero UI changes.
+ * EVERY answer here comes from the model. This used to fall back to a scripted mock
+ * whenever the backend hiccuped, which was a mistake: the script is a fixed step graph
+ * (intake → scene safety → responsiveness → call 911) that says the same thing whether
+ * someone is choking or bleeding, opens every reply with "I'm not a medical professional
+ * and I can't diagnose anyone", and escalates to "this is beyond what I should guide you
+ * through". On screen it is indistinguishable from the real assistant, so a user in an
+ * emergency acts on it believing it was written for their situation.
+ *
+ * A visible failure they can retry beats a plausible answer that was not about them. So
+ * a backend problem now surfaces as a backend problem. See mock/ for the old script — it
+ * is no longer wired in.
  *
  * @typedef {import("../types/ai.js").AIRequest} AIRequest
  * @typedef {import("../types/ai.js").AIResponse} AIResponse
  */
 
-import { mockAIProvider, greeting as mockGreeting } from "../mock/mockAI.js";
-
 /** Overridable from the page: `window.AIDLIVE_CONFIG = { aiEndpoint: "/api/assistant" }`. */
 const CONFIG = (typeof window !== "undefined" && window.AIDLIVE_CONFIG) || {};
 const AI_ENDPOINT = CONFIG.aiEndpoint || "/api/assistant";
-// An LLM round-trip is slower than a plain API call. The backend gives up at 25s,
-// so allow a little more here and let the mock cover anything past that.
+const HEALTH_ENDPOINT = CONFIG.healthEndpoint || "/api/health";
+// An LLM round-trip is slower than a plain API call, and a fully-described technique is
+// a lot of tokens. The backend gives up at 25s; allow a little more than that here.
 const REQUEST_TIMEOUT_MS = 30000;
-/** After a backend failure, wait this long before trying it again. */
-const BACKEND_RETRY_AFTER_MS = 20000;
+
+/**
+ * Raised when the model could not answer. The UI shows this as itself — an error with a
+ * retry — rather than papering over it with something that reads like guidance.
+ */
+export class AssistantUnavailableError extends Error {
+  /** @param {string} reason */
+  constructor(reason) {
+    super(reason || "The assistant is unreachable.");
+    this.name = "AssistantUnavailableError";
+  }
+}
+
+/**
+ * The opening line, before the user has said anything.
+ *
+ * Deliberately NOT a disclaimer. The old one led with "I'm an assistant, not a medical
+ * professional, and I can't diagnose anyone" — the first thing a panicking person heard
+ * was the app distancing itself from them. The standing safety note lives in the
+ * footnote, where it belongs, and the model is instructed not to repeat it.
+ */
+const OPENING_LINE =
+  "I'm here, and I'll stay with you. Tell me what's happening — a few words is enough — " +
+  "or point the camera at them and describe what you can see.";
 
 /**
  * Strip the session down to what the model actually needs. Frames are big; we send the
@@ -82,67 +111,116 @@ function normalize(raw) {
 }
 
 export function createAIService() {
-  /**
-   * A failing backend is muted temporarily, not permanently: one timeout mid-emergency
-   * must not drop the rest of the session into scripted replies. After the cooldown the
-   * next turn tries the real assistant again.
-   */
-  let mutedUntil = 0;
-  let lastSource = "mock";
   let lastBackendError = "";
 
-  const backendAvailable = () => Date.now() >= mutedUntil;
-
   /**
+   * Every turn goes to the model. No cooldown and no muting: one slow turn must not
+   * decide the rest of the session, so the next message tries again regardless.
+   *
    * @param {AIRequest} request
    * @returns {Promise<AIResponse>}
+   * @throws {AssistantUnavailableError}
    */
   async function sendMessage(request) {
-    if (backendAvailable()) {
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-        const res = await fetch(AI_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(serializeRequest(request)),
-          signal: controller.signal,
-        });
-        clearTimeout(timer);
-
-        if (!res.ok) throw new Error(`Backend returned ${res.status}`);
-
-        const raw = await res.json();
-        if (!raw || !raw.message) throw new Error("Backend response had no message");
-
-        lastSource = "backend";
-        lastBackendError = "";
-        return normalize(raw);
-      } catch (err) {
-        // Expected while no backend is running — fall through to the mock, and back off
-        // briefly rather than hammering it on every turn.
-        mutedUntil = Date.now() + BACKEND_RETRY_AFTER_MS;
-        lastBackendError = (err && err.message) || "Backend unreachable";
-      }
+    let res;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      res = await fetch(AI_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(serializeRequest(request)),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+    } catch (err) {
+      lastBackendError =
+        err && err.name === "AbortError"
+          ? `The assistant did not answer within ${Math.round(REQUEST_TIMEOUT_MS / 1000)} seconds.`
+          : `Could not reach the assistant at ${AI_ENDPOINT}.`;
+      throw new AssistantUnavailableError(lastBackendError);
     }
 
-    lastSource = "mock";
-    return mockAIProvider.sendMessage(request);
+    if (!res.ok) {
+      // Name the actual failure. "404" here almost always means the page is being served
+      // by a plain static file server with no backend behind it, which is worth saying
+      // out loud rather than leaving someone to guess.
+      let detail = "";
+      try {
+        detail = (await res.json()).error || "";
+      } catch {
+        /* error body was not JSON — the status alone will have to do */
+      }
+      lastBackendError =
+        res.status === 404
+          ? `${AI_ENDPOINT} returned 404 — no assistant backend is running on this host.`
+          : `The assistant failed (HTTP ${res.status})${detail ? `: ${detail}` : ""}.`;
+      throw new AssistantUnavailableError(lastBackendError);
+    }
+
+    const raw = await res.json().catch(() => null);
+    if (!raw || !raw.message) {
+      lastBackendError = "The assistant returned an empty answer.";
+      throw new AssistantUnavailableError(lastBackendError);
+    }
+
+    lastBackendError = "";
+    return normalize(raw);
+  }
+
+  /**
+   * Ask the backend whether it can actually answer, before the user needs it to. Called
+   * as the session opens so a misconfigured host is visible immediately instead of at
+   * the worst possible moment.
+   *
+   * @returns {Promise<{ok: boolean, reason?: string, model?: string}>}
+   */
+  async function checkHealth() {
+    let res;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      res = await fetch(HEALTH_ENDPOINT, { signal: controller.signal });
+      clearTimeout(timer);
+    } catch {
+      return { ok: false, reason: `Could not reach ${HEALTH_ENDPOINT}.` };
+    }
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        reason:
+          res.status === 404
+            ? `${HEALTH_ENDPOINT} returned 404 — no assistant backend is running on this host.`
+            : `${HEALTH_ENDPOINT} returned HTTP ${res.status}.`,
+      };
+    }
+
+    const body = await res.json().catch(() => null);
+    if (!body || !body.ok) return { ok: false, reason: "The backend reported itself unhealthy." };
+    if (!body.hasApiKey) {
+      return { ok: false, reason: "The backend is running but has no FEATHERLESS_API_KEY set." };
+    }
+    return { ok: true, model: body.model };
   }
 
   return {
     sendMessage,
-    /** Opening line, before the user has said anything. */
-    greeting: () => mockGreeting(),
-    getLastSource: () => lastSource,
+    checkHealth,
+    /** The opening line. Local by design: a round trip here would delay the first word. */
+    greeting: () => ({
+      message: OPENING_LINE,
+      instruction: "Tell me what happened",
+      nextStep: null,
+      scenario: null,
+      urgency: "moderate",
+      actions: [],
+      knownFacts: {},
+      language: "en",
+      source: /** @type {"backend"} */ ("backend"),
+      audioUrl: null,
+    }),
     getLastBackendError: () => lastBackendError,
-    isBackendAvailable: backendAvailable,
     endpoint: () => AI_ENDPOINT,
-    /** Let the user retry the backend after it was marked unavailable. */
-    resetBackend() {
-      mutedUntil = 0;
-      lastBackendError = "";
-    },
   };
 }

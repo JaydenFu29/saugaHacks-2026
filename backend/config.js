@@ -63,15 +63,22 @@ export const config = {
   /**
    * Separate model for camera frames — the guidance model is text-only and silently
    * ignores images.
+   *
+   * DO NOT swap this without re-running the accuracy probe on real photographs. Being
+   * listed as available is not the same as working: Qwen2.5-VL-32B is served here and
+   * answers HTTP 200, but returns token salad ("， system-type code code") for every
+   * frame, and Qwen2.5-VL-3B invented "a person lying on the ground with their eyes
+   * closed" for a photo of a first-aid kit. Both are unusable here and neither announces
+   * itself as broken. 72B has now been verified twice, on separate days.
    */
-  visionModel: env.FEATHERLESS_VISION_MODEL || "Qwen/Qwen2.5-VL-32B-Instruct",
+  visionModel: env.FEATHERLESS_VISION_MODEL || "Qwen/Qwen2.5-VL-72B-Instruct",
   /**
-   * Featherless takes vision models in and out of capacity constantly, and a 503
-   * "capacity_exhausted" on any one of them is routine rather than exceptional. Walking
-   * a short list means one busy model does not leave the assistant blind.
+   * Featherless takes vision models in and out of capacity constantly, so a busy primary
+   * is routine rather than exceptional. Both fallbacks were checked against the same
+   * control images as the primary and describe them correctly.
    */
   visionFallbacks: (env.FEATHERLESS_VISION_FALLBACKS ||
-    "Qwen/Qwen2.5-VL-72B-Instruct,Qwen/Qwen2.5-VL-7B-Instruct")
+    "Qwen/Qwen3-VL-30B-A3B-Instruct,Qwen/Qwen3-VL-8B-Instruct")
     .split(",")
     .map((m) => m.trim())
     .filter(Boolean),
@@ -80,7 +87,13 @@ export const config = {
   /** One short paragraph of observation is plenty, and keeps the frame turnaround fast. */
   visionMaxTokens: Number(env.FEATHERLESS_VISION_MAX_TOKENS) || 160,
   /** Frames are time-critical: fail fast to the text-only path rather than stalling a turn. */
-  visionTimeoutMs: Number(env.FEATHERLESS_VISION_TIMEOUT_MS) || 15000,
+  visionTimeoutMs: Number(env.FEATHERLESS_VISION_TIMEOUT_MS) || 10000,
+  /**
+   * Ceiling for the whole fallback walk. Without it three candidates at 10s each could
+   * hold a turn for 30s — longer than the browser waits — and the user would sit staring
+   * at "Thinking" while the assistant had nothing to say.
+   */
+  visionTotalBudgetMs: Number(env.FEATHERLESS_VISION_BUDGET_MS) || 18000,
   temperature: Number.isFinite(Number(env.FEATHERLESS_TEMPERATURE))
     ? Number(env.FEATHERLESS_TEMPERATURE)
     : 0.3, // low: this is safety guidance, not creative writing

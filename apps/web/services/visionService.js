@@ -21,8 +21,12 @@
 const CONFIG = (typeof window !== "undefined" && window.AIDLIVE_CONFIG) || {};
 const VISION_ENDPOINT = CONFIG.visionEndpoint || "/api/vision";
 
-/** A frame is only worth describing if the scene has had a moment to change. */
-const REQUEST_TIMEOUT_MS = 20000;
+/**
+ * Long enough for the backend to walk its vision fallback chain (budgeted at 18s there)
+ * and still answer, rather than the browser giving up on a request that was about to
+ * succeed.
+ */
+const REQUEST_TIMEOUT_MS = 25000;
 /** After a failure, back off briefly rather than retrying on every single turn. */
 const RETRY_AFTER_MS = 15000;
 

@@ -251,13 +251,23 @@ export async function generateResponse(payload) {
   // "911" stays as digits in every language (the prompt requires it), so this test works
   // regardless of what language `message` is written in.
   const called = knownFacts.emergencyServicesCalled ?? priorCalled;
-  const alreadyRaised = (Array.isArray(context.messages) ? context.messages : []).some(
-    (m) => m && m.role === "assistant" && /\b911\b/.test(String(m.text || ""))
+  const priorAssistant = (Array.isArray(context.messages) ? context.messages : []).filter(
+    (m) => m && m.role === "assistant" && typeof m.text === "string"
   );
+  const everRaised = priorAssistant.some((m) => /\b911\b/.test(m.text));
+  // Whether the turn immediately before this one already carried it. Appending on every
+  // single turn is what makes the assistant feel like it is nagging instead of helping,
+  // so it alternates: present on this turn, absent on the next, back on the one after.
+  // Never more than one turn goes by without it while the scene is still critical.
+  const lastCarriedIt = priorAssistant.length
+    ? /\b911\b/.test(priorAssistant[priorAssistant.length - 1].text)
+    : false;
 
   let finalMessage = message;
-  if (urgency === "critical" && called !== "yes" && !/\b911\b/.test(message)) {
-    finalMessage = alreadyRaised
+  if (urgency === "critical" && called !== "yes" && !/\b911\b/.test(message) && !lastCarriedIt) {
+    // The first time, it has to be the first thing they hear. After that the guidance
+    // leads and the reminder trails, so the reply is not "call 911" all over again.
+    finalMessage = everRaised
       ? `${message} ${callPrompt(language)}`
       : `${callPrompt(language)} ${message}`;
   }

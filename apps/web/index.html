@@ -99,6 +99,13 @@
       </div>
     </div>
 
+    <!-- Shown when the model could not answer. There is no scripted stand-in any more,
+         so this is how a backend problem reaches the user: as itself, with a retry. -->
+    <div class="alert" id="alert" hidden>
+      <p class="alert__text" id="alert-text"></p>
+      <button class="btn btn--ghost btn--sm" id="alert-retry" type="button">Try again</button>
+    </div>
+
     <!-- The single most important thing on the page: what to do right now. -->
     <div class="instruction" id="instruction" hidden>
       <p class="instruction__label">Do this now</p>
@@ -166,7 +173,7 @@
     </div>
 
     <p class="footnote">
-      <span id="ai-source-note">Demo assistant — scripted responses</span>
+      <span id="ai-source-note">Connecting…</span>
       · For life-threatening emergencies, <a href="tel:911">call 911</a>.
     </p>
   </section>
