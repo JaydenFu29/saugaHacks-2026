@@ -18,6 +18,7 @@ import { join, normalize, extname } from "node:path";
 import { config, describeConfig, REPO_ROOT } from "./config.js";
 import { generateResponse } from "./assistant.js";
 import { ProviderError } from "./featherless.js";
+import { describeFrame, validateFrame } from "./vision.js";
 
 const STATIC_ROOT = join(REPO_ROOT, "apps");
 const MAX_BODY_BYTES = 2 * 1024 * 1024; // frames can ride along in visualContext
@@ -76,7 +77,14 @@ function readBody(req) {
 
 async function serveStatic(req, res, pathname) {
   // Default to the emergency app; `/site/` serves the marketing page.
-  let rel = pathname === "/" ? "/web/index.html" : pathname;
+  // Redirect (rather than serve the file inline) so the browser's URL becomes
+  // /web/, and index.html's relative asset paths (styles.css, main.js) resolve
+  // to /web/styles.css, /web/main.js instead of 404ing at the root.
+  if (pathname === "/") {
+    res.writeHead(302, { Location: "/web/" }).end();
+    return;
+  }
+  let rel = pathname;
   if (rel.endsWith("/")) rel += "index.html";
 
   // Contain the path inside apps/ — normalize() collapses any ../ traversal.
@@ -169,6 +177,49 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ── vision: one camera frame → one sentence of observation ──────────────
+  // Kept separate from /api/assistant so a slow or failing vision model degrades to a
+  // text-only turn instead of taking the whole conversation down with it.
+  if (pathname === "/api/vision") {
+    if (req.method !== "POST") {
+      sendJson(res, 405, { error: "Use POST" });
+      return;
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse((await readBody(req)) || "{}");
+    } catch (err) {
+      sendJson(res, err.status === 413 ? 413 : 400, {
+        error: err.status === 413 ? "Frame too large" : "Invalid JSON body",
+      });
+      return;
+    }
+
+    const frame = validateFrame(payload.frameDataUrl);
+    if (!frame.ok) {
+      sendJson(res, 400, { error: frame.reason });
+      return;
+    }
+
+    const started = Date.now();
+    try {
+      const result = await describeFrame(frame.dataUrl);
+      const ms = Date.now() - started;
+      console.log(`[vision] ${ms}ms "${result.observedContext.slice(0, 70)}"`);
+      sendJson(res, 200, {
+        observedContext: result.observedContext,
+        model: result.model,
+        tookMs: ms,
+      });
+    } catch (err) {
+      const status = err instanceof ProviderError ? err.status : 500;
+      console.error(`[vision] failed after ${Date.now() - started}ms:`, err.message);
+      sendJson(res, status, { error: err.message, retryable: Boolean(err.retryable) });
+    }
+    return;
+  }
+
   // ── static ──────────────────────────────────────────────────────────────
   if (req.method === "GET" || req.method === "HEAD") {
     await serveStatic(req, res, pathname);
@@ -186,6 +237,7 @@ server.listen(config.port, () => {
   console.log(`  Site            http://localhost:${config.port}/site/index.html`);
   console.log(`  Health          http://localhost:${config.port}/api/health`);
   console.log(`  Model           ${info.model}`);
+  console.log(`  Vision model    ${info.visionModel || "disabled"}`);
   console.log(
     info.hasApiKey
       ? `  API key         loaded (${info.keyPreview})`

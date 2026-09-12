@@ -58,7 +58,19 @@ export const config = {
   hasApiKey: hasRealKey,
   baseUrl: (env.FEATHERLESS_BASE_URL || "https://api.featherless.ai/v1").replace(/\/+$/, ""),
   model: env.FEATHERLESS_MODEL || "meta-llama/Meta-Llama-3.1-8B-Instruct",
+  /**
+   * Separate model for camera frames — the guidance model is text-only and silently
+   * ignores images. Verified against this provider: Qwen2.5-VL-72B reads frames
+   * correctly (~1.7s); the 32B variant returned confidently wrong colours on a
+   * control image, so do not "downgrade" this for speed without re-testing.
+   */
+  visionModel: env.FEATHERLESS_VISION_MODEL || "Qwen/Qwen2.5-VL-72B-Instruct",
+  visionEnabled: String(env.VISION_ENABLED ?? "true").toLowerCase() !== "false",
   maxTokens: Number(env.FEATHERLESS_MAX_TOKENS) || 400,
+  /** One short paragraph of observation is plenty, and keeps the frame turnaround fast. */
+  visionMaxTokens: Number(env.FEATHERLESS_VISION_MAX_TOKENS) || 160,
+  /** Frames are time-critical: fail fast to the text-only path rather than stalling a turn. */
+  visionTimeoutMs: Number(env.FEATHERLESS_VISION_TIMEOUT_MS) || 15000,
   temperature: Number.isFinite(Number(env.FEATHERLESS_TEMPERATURE))
     ? Number(env.FEATHERLESS_TEMPERATURE)
     : 0.3, // low: this is safety guidance, not creative writing
@@ -70,6 +82,8 @@ export function describeConfig() {
   return {
     port: config.port,
     model: config.model,
+    visionModel: config.visionEnabled ? config.visionModel : null,
+    visionEnabled: config.visionEnabled,
     baseUrl: config.baseUrl,
     hasApiKey: config.hasApiKey,
     keyPreview: config.hasApiKey ? `…${config.apiKey.slice(-4)}` : null,

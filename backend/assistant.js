@@ -77,8 +77,36 @@ function cleanSpoken(value) {
  * must not be labelled low urgency, and 911 must be on the table. The prompt already
  * demands this; this is belt-and-braces because urgency drives the UI.
  */
-const CRITICAL_SIGNS =
-  /\b(not breathing|isn'?t breathing|no pulse|unrespons|unconscious|not responding|choking|severe bleed|bleeding heavily|won'?t wake|cardiac|seizure|anaphyla|overdose|drowning)\b/i;
+const CRITICAL_SIGNS = new RegExp(
+  [
+    // Breathing
+    "not breathing", "isn'?t breathing", "stopped breathing", "barely breathing",
+    "can'?t breathe", "cannot breathe", "struggling to breathe", "gasping", "agonal",
+    "chest (is |isn'?t |is not )?(not )?moving", "no chest rise", "not breathing right",
+    // Circulation / responsiveness. Stems end in \w*, NOT \b — a trailing \b can never
+    // match inside "unresponsive", so the original `\b(unrespons)\b` never fired at all.
+    "no pulse", "can'?t find a pulse", "unrespons\\w*", "unconscious",
+    "not respond\\w*", "won'?t respond", "wont respond", "won'?t wake", "wont wake",
+    "not waking", "passed out", "blacked out", "collaps\\w*", "gone limp", "lifeless",
+    "barely awake", "won'?t move", "not moving",
+    // Colour / perfusion
+    "turning blue", "(lips|skin) (are |is |look |looks )?(blue|purple|grey|gray|ashen)",
+    "going (grey|gray|blue)", "dusky",
+    // Named emergencies
+    "choking", "can'?t cough", "cardiac", "heart attack", "seizure", "seizing",
+    "chest pain", "pain in (his|her|their|my) chest", "tightness in.{0,12}chest",
+    "crushing.{0,15}chest", "pressure in.{0,12}chest",
+    "convuls\\w*", "anaphyla\\w*", "allergic reaction", "throat (is )?clos\\w*",
+    "throat (is )?(tight|swelling)", "overdos\\w*", "took .{0,25}pills", "drown\\w*",
+    "electrocut\\w*", "stroke", "face (is )?droop\\w*", "slurr\\w*",
+    // Bleeding
+    "severe bleed\\w*", "bleeding heavily", "bleeding badly", "blood everywhere",
+    "soaking through", "spurting", "gushing", "won'?t stop bleeding",
+    // Major trauma
+    "impaled", "amputat\\w*", "arterial",
+  ].join("|"),
+  "i"
+);
 
 function enforceUrgency(urgency, haystack) {
   const normalized = URGENCIES.includes(urgency) ? urgency : "moderate";
@@ -116,12 +144,38 @@ export async function generateResponse(payload) {
       ? obj.knownFacts
       : {};
 
+  // The model routinely encodes "I told them to call 911" as "they called 911". That
+  // fabricated fact then comes back as established (buildContextBlock renders known facts
+  // as "do NOT ask about these again"), so the assistant stops prompting and starts
+  // referring to a dispatcher nobody ever reached. Only the USER may establish this.
+  const priorCalled = (context.knownFacts || {}).emergencyServicesCalled;
+  if ("emergencyServicesCalled" in knownFacts) {
+    const claimed = String(knownFacts.emergencyServicesCalled).toLowerCase();
+    const said = String(payload.userMessage || "");
+    const userConfirmed =
+      /\b(i|we)\b[^.?!]{0,25}\b(called|calling|phoned|dialed|dialled)\b[^.?!]{0,20}\b(911|9-1-1|ambulance|emergency)\b/i.test(said) ||
+      /\b(911|ambulance|paramedics|dispatcher)\b[^.?!]{0,25}\b(on the (phone|line|way)|coming|here|en route|answered)\b/i.test(said);
+    if (claimed === "yes" && !userConfirmed && priorCalled !== "yes") {
+      knownFacts.emergencyServicesCalled = priorCalled || "unknown";
+    }
+  }
+
+  const urgency = enforceUrgency(obj.urgency, haystack);
+
+  // While the scene is critical and no call is confirmed, re-raise it every single turn.
+  // The model reliably says it once on turn 1 and then never mentions it again.
+  const called = knownFacts.emergencyServicesCalled ?? priorCalled;
+  const finalMessage =
+    urgency === "critical" && called !== "yes" && !/\b911\b/.test(message)
+      ? `Call 911 now if you have not already. ${message}`
+      : message;
+
   const newActions = Array.isArray(obj.actions)
     ? obj.actions.map((a) => cleanSpoken(a)).filter(Boolean)
     : [];
 
   return {
-    message,
+    message: finalMessage,
     instruction,
     // No scripted step graph behind a real model — the instruction IS the step.
     nextStep: typeof obj.nextStep === "string" ? obj.nextStep : context.currentStep || null,
@@ -129,7 +183,7 @@ export async function generateResponse(payload) {
       (typeof obj.scenario === "string" && obj.scenario && obj.scenario !== "null"
         ? obj.scenario
         : null) || context.scenario || null,
-    urgency: enforceUrgency(obj.urgency, haystack),
+    urgency,
     actions: [...new Set([...(context.actionsTaken || []), ...newActions])],
     knownFacts,
     source: "backend",
