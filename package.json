@@ -1,0 +1,12 @@
+{
+  "name": "aidlive",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AidLive — emergency first-aid assistant. Static frontend + serverless AI proxy.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "node backend/server.js",
+    "start": "node backend/server.js"
+  }
+}
