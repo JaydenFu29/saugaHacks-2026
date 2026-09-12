@@ -105,11 +105,12 @@ export function createAssistantView() {
       if (!voice.recognitionSupported) {
         micLabel.textContent = "Voice not supported — type below";
       } else if (voice.listening) {
+        // Make it explicit that stopping does NOT send.
         micLabel.textContent = "Listening — tap to stop";
       } else if (!voice.micGranted) {
-        micLabel.textContent = "Tap to allow mic & talk";
+        micLabel.textContent = "Tap to allow mic & speak";
       } else {
-        micLabel.textContent = "Tap to talk";
+        micLabel.textContent = "Tap to speak";
       }
     },
 
@@ -143,6 +144,21 @@ export function createAssistantView() {
 
     clearInput() {
       textInput.value = "";
+    },
+
+    /** Append a finished speech transcript to whatever is already in the composer. */
+    appendInput(text) {
+      const addition = String(text || "").trim();
+      if (!addition) return;
+      const existing = textInput.value.trim();
+      textInput.value = existing ? `${existing} ${addition}` : addition;
+      // Keep the caret at the end so the user can carry on typing or hit Send.
+      try {
+        textInput.focus({ preventScroll: true });
+        textInput.setSelectionRange(textInput.value.length, textInput.value.length);
+      } catch {
+        /* focus can fail if the element is hidden — harmless */
+      }
     },
 
     getInput() {

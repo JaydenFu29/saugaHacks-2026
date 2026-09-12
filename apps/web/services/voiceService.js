@@ -106,7 +106,10 @@ export function createVoiceService() {
     if (!Ctor) return null;
     const r = new Ctor();
     r.lang = "en-US";
-    r.continuous = false;      // one utterance per press — clearer state machine
+    // Keep the mic open across pauses: the user taps to stop, then presses Send.
+    // With continuous=false the engine ends the session at the first silence, which
+    // would cut a panicking user off mid-sentence.
+    r.continuous = true;
     r.interimResults = true;   // so the user sees words appear as they speak
     r.maxAlternatives = 1;
 
