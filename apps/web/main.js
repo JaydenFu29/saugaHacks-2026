@@ -5,7 +5,7 @@
  *   user speaks or types
  *     → voiceService (STT) or text input
  *     → visionService samples one camera frame for observable context
- *     → aiService (our backend if present, mock otherwise) receives the FULL session
+ *     → aiService posts the FULL session to our backend — every answer is the model's
  *     → session state folds in the reply (facts merge, step advances)
  *     → reply is transcribed on screen AND spoken via speechService
  *
@@ -17,7 +17,7 @@
 import { createCameraService } from "./services/cameraService.js";
 import { createVoiceService } from "./services/voiceService.js";
 import { createSpeechService } from "./services/speechService.js";
-import { createAIService } from "./services/aiService.js";
+import { createAIService, AssistantUnavailableError } from "./services/aiService.js";
 import { createVisionService } from "./services/visionService.js";
 import { createEmergencySession } from "./state/emergencySession.js";
 import { createCameraView } from "./ui/cameraView.js";
@@ -45,6 +45,39 @@ const endedEl = document.getElementById("ended");
 const endedSummary = document.getElementById("ended-summary");
 
 let busy = false;
+
+/* ── backend failures, shown rather than papered over ───────────────────────
+   There is no scripted fallback any more. When the model cannot answer, the user is
+   told what failed and offered the same message again, because a canned reply that
+   reads like guidance is worse than no reply — they cannot tell it apart, and they
+   will act on it. */
+const alertEl = document.getElementById("alert");
+const alertText = document.getElementById("alert-text");
+const btnAlertRetry = document.getElementById("alert-retry");
+/** The message to resend if they hit Try again; empty when there is nothing to retry. */
+let failedMessage = "";
+
+/**
+ * @param {string} text
+ * @param {string} [retryMessage]
+ */
+function showAlert(text, retryMessage = "") {
+  alertText.textContent = text;
+  failedMessage = retryMessage;
+  btnAlertRetry.hidden = !retryMessage;
+  alertEl.hidden = false;
+}
+
+function clearAlert() {
+  alertEl.hidden = true;
+  failedMessage = "";
+}
+
+btnAlertRetry.addEventListener("click", () => {
+  const text = failedMessage;
+  clearAlert();
+  if (text) submitUserMessage(text);
+});
 
 /* ── Language picker ──────────────────────────────────────────────────────
    Speech recognition transcribes as whatever language it is told, so on "Auto" the
@@ -149,14 +182,11 @@ async function submitUserMessage(text) {
       preferredLanguage,
     });
 
+    clearAlert();
     session.applyAIResponse(response);
     const message = session.addMessage("assistant", response.message);
 
-    assistantView.setSourceNote(
-      response.source === "backend"
-        ? "Live assistant"
-        : "Demo assistant — scripted responses"
-    );
+    assistantView.setSourceNote("Live assistant");
 
     // Speak it in the language it was written in — a Chinese reply read by an English
     // voice is unintelligible. If muted or synthesis is unavailable, the text is already
@@ -168,11 +198,12 @@ async function submitUserMessage(text) {
     if (!started) session.setAssistantStatus("idle");
     renderAudio();
   } catch (err) {
-    session.addMessage(
-      "assistant",
-      "Something went wrong on my side. If this is life-threatening, call 911 now. " +
-        "You can keep typing and I'll try again."
-    );
+    // Nothing is added to the transcript here on purpose: a failure is not something the
+    // assistant said, and writing one in would feed it back to the model as context.
+    const reason =
+      err instanceof AssistantUnavailableError ? err.message : "The assistant could not answer.";
+    showAlert(reason, clean);
+    speech.speak("I could not get an answer. Tap try again.");
     session.setAssistantStatus("idle");
   } finally {
     busy = false;
@@ -214,6 +245,18 @@ async function enterEmergency({ requestDevices }) {
   renderAudio();
   openingTurn();
   assistantView.focusInput();
+
+  // Ask the backend whether it can actually answer, now, rather than letting someone
+  // discover mid-emergency that the host has no assistant behind it. Not awaited: the
+  // opening line should not wait on a health check.
+  ai.checkHealth().then((health) => {
+    if (health.ok) {
+      assistantView.setSourceNote("Live assistant");
+      return;
+    }
+    assistantView.setSourceNote("Assistant offline");
+    showAlert(`${health.reason} I will not be able to answer until that is fixed.`);
+  });
 }
 
 document.getElementById("gate-allow").addEventListener("click", () => {

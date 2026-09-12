@@ -268,6 +268,17 @@ a { color: var(--teal); }
 .state[data-state="processing"] .state__dot,
 .state[data-state="speaking"] .state__dot { animation: blink 1.2s ease-in-out infinite; }
 
+/* Backend failure — deliberately looks like a system message, not like guidance */
+.alert {
+  flex: none;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid #6B4E12;
+  border-radius: 10px;
+}
+.alert__text { margin: 0; flex: 1 1 12rem; font-size: 13px; color: var(--amber); }
+
 /* Current instruction — the loudest thing in the panel */
 .instruction {
   flex: none;
