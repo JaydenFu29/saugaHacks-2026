@@ -95,8 +95,10 @@ voice.on({
     assistantView.setInterim(text);
   },
   onFinal(text) {
+    // Speech fills the composer — it is NEVER sent automatically. The user reads it,
+    // edits if the transcription got it wrong, and presses Send when ready.
     assistantView.setInterim("");
-    submitUserMessage(text);
+    assistantView.appendInput(text);
   },
 });
 
@@ -232,6 +234,8 @@ btnMic.addEventListener("click", async () => {
 
 document.getElementById("composer").addEventListener("submit", (e) => {
   e.preventDefault();
+  // Sending ends the dictation — otherwise the mic keeps running into the next reply.
+  if (voice.getState().listening) voice.stopListening();
   const text = assistantView.getInput();
   if (!text) return;
   assistantView.clearInput();
