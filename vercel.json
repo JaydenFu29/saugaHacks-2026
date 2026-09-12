@@ -7,13 +7,17 @@
     }
   },
 
-  "rewrites": [
-    { "source": "/site", "destination": "/apps/site/index.html" },
-    { "source": "/site/", "destination": "/apps/site/index.html" },
-    { "source": "/site/:path*", "destination": "/apps/site/:path*" },
+  "redirects": [
+    { "source": "/", "destination": "/web/", "permanent": false },
+    { "source": "/web", "destination": "/web/", "permanent": false },
+    { "source": "/site", "destination": "/site/", "permanent": false }
+  ],
 
-    { "source": "/", "destination": "/apps/web/index.html" },
-    { "source": "/:path*", "destination": "/apps/web/:path*" }
+  "rewrites": [
+    { "source": "/web/", "destination": "/apps/web/index.html" },
+    { "source": "/web/:path*", "destination": "/apps/web/:path*" },
+    { "source": "/site/", "destination": "/apps/site/index.html" },
+    { "source": "/site/:path*", "destination": "/apps/site/:path*" }
   ],
 
   "headers": [
