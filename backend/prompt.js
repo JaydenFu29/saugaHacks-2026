@@ -121,9 +121,14 @@ Reply with ONLY a JSON object, no code fences and no text around it:
   "instruction": "the single action they should take right now (under 10 words)",
   "urgency": "low" | "moderate" | "high" | "critical",
   "scenario": "short kebab-case label for the situation, or null",
+  "language": "BCP-47 tag of the language you wrote message in, e.g. en, es, zh-CN, fr",
   "knownFacts": { "factName": "value" },
   "actions": ["short label for what you just told them to do"]
 }
+- "language" MUST describe the language of "message", and "message" MUST be in the same
+  language the user just used. If they wrote Chinese, "message" is Chinese and "language"
+  is "zh-CN". The app uses this tag to choose the voice that reads your words aloud, so a
+  wrong tag means the user hears their own language read in a foreign accent, or silence.
 - "knownFacts" holds anything NEW you learned this turn (for example
   {"responsive":"no"}). Use {} if nothing new.
 - Record a fact ONLY if the user stated it in their own words. Never record something you
@@ -132,6 +137,57 @@ Reply with ONLY a JSON object, no code fences and no text around it:
   breathing, pulse, or responsiveness value they did not actually describe to you. If you
   have not been told, leave the key out.
 - "urgency" is "critical" whenever 911 should already be on the line.`;
+
+/**
+ * Writing-system detection. Script is a reliable signal; telling apart languages that
+ * share the Latin alphabet is not, so those return null and the model decides.
+ *
+ * This exists because the model cannot be trusted to notice the user's language on its
+ * own — Qwen answers Japanese prompts in Chinese, since the two share kanji. Detecting
+ * the script here and stating it as an instruction fixes that deterministically.
+ */
+const SCRIPTS = [
+  // Kana before Han: Japanese contains kanji too, so testing Han first would call
+  // every Japanese sentence Chinese — exactly the bug this is here to prevent.
+  [/[぀-ゟ゠-ヿ]/, "ja", "Japanese"],
+  [/[가-힯ᄀ-ᇿ]/, "ko", "Korean"],
+  [/[一-鿿㐀-䶿]/, "zh-CN", "Chinese"],
+
+  // Arabic-script languages, most specific first. Urdu and Persian both render in the
+  // Arabic script, so a bare Arabic-block test would answer an Urdu speaker in Arabic.
+  // Urdu is checked before Persian because Urdu also uses the four Persian letters.
+  [/[ٹڈڑںےھ]/, "ur", "Urdu"],          // retroflex + yeh barree + noon ghunna
+  [/[پچژگ]/, "fa", "Persian"],            // Persian letters absent from Arabic
+  [/[؀-ۿݐ-ݿ]/, "ar", "Arabic"],
+
+  // South Asian scripts, each in its own Unicode block — but Devanagari must come LAST.
+  // The danda "।" (U+0964) and double danda (U+0965) are the full stop in Punjabi,
+  // Bengali and Hindi alike, yet they live in the Devanagari block. Testing Devanagari
+  // first therefore tagged every Punjabi or Bengali sentence that ended in a full stop as
+  // Hindi. Both dandas are excluded from the Hindi class below, and Hindi is checked
+  // after the others, so a real Devanagari letter is required to match it.
+  [/[ਅ-੿]/, "pa", "Punjabi"],             // gurmukhi
+  [/[ઁ-૿]/, "gu", "Gujarati"],            // gujarati
+  [/[ঁ-৿]/, "bn", "Bengali"],             // bengali
+  [/[஁-௿]/, "ta", "Tamil"],               // tamil
+  [/[ऀ-ॣ०-ॿ]/, "hi", "Hindi"],            // devanagari, minus U+0964–U+0965 dandas
+
+  [/[Ѐ-ӿ]/, "ru", "Russian"],
+  [/[֐-׿]/, "he", "Hebrew"],
+  [/[฀-๿]/, "th", "Thai"],
+  [/[Ͱ-Ͽ]/, "el", "Greek"],
+];
+
+/**
+ * @param {string} text
+ * @returns {{tag: string, name: string}|null}
+ */
+export function detectScript(text) {
+  for (const [re, tag, name] of SCRIPTS) {
+    if (re.test(String(text || ""))) return { tag, name };
+  }
+  return null;
+}
 
 /**
  * Build the compact state block the model sees alongside the transcript. This is what
@@ -190,7 +246,33 @@ export function buildContextBlock(context = {}, visualContext = null) {
  *
  * @param {{userMessage: string, context: any, visualContext: any}} payload
  */
-export function buildMessages({ userMessage, context = {}, visualContext = null }) {
+/** Tag → English name, for the directive. Covers what the UI picker offers. */
+const LANGUAGE_NAMES = {
+  en: "English", es: "Spanish", fr: "French", pt: "Portuguese",
+  "zh-CN": "Chinese", zh: "Chinese", ja: "Japanese", ko: "Korean",
+  hi: "Hindi", ar: "Arabic", ru: "Russian", ur: "Urdu", tl: "Tagalog",
+  pa: "Punjabi", ta: "Tamil", gu: "Gujarati", bn: "Bengali",
+  vi: "Vietnamese", pl: "Polish", fa: "Persian", he: "Hebrew",
+  th: "Thai", el: "Greek",
+};
+
+/**
+ * @param {string} tag
+ * @returns {{tag: string, name: string}|null}
+ */
+export function namedLanguage(tag) {
+  const raw = String(tag || "").trim();
+  if (!raw) return null;
+  const name = LANGUAGE_NAMES[raw] || LANGUAGE_NAMES[raw.split("-")[0].toLowerCase()];
+  return name ? { tag: raw, name } : null;
+}
+
+export function buildMessages({
+  userMessage,
+  context = {},
+  visualContext = null,
+  preferredLanguage = "",
+}) {
   const history = Array.isArray(context.messages) ? context.messages : [];
 
   /** @type {{role: string, content: string}[]} */
@@ -213,11 +295,22 @@ export function buildMessages({ userMessage, context = {}, visualContext = null 
     });
   }
 
+  const said = String(userMessage || "").trim();
+
+  // An explicit choice from the UI outranks detection: script detection cannot tell
+  // Polish from English, and on the user's very first word there may be nothing to go on.
+  // Detection still beats the model's own judgement. Stated last, right before the reply,
+  // where instructions carry the most weight.
+  const detected = namedLanguage(preferredLanguage) || detectScript(said);
+  const languageDirective = detected
+    ? `\n\nThe user is writing in ${detected.name}. Your "message" MUST be written in ` +
+      `${detected.name}, and "language" MUST be "${detected.tag}". Do not answer in any ` +
+      `other language, and do not switch to a related one.`
+    : "";
+
   messages.push({
     role: "user",
-    content: `${buildContextBlock(context, visualContext)}\n\nThey just said: "${String(
-      userMessage || ""
-    ).trim()}"`,
+    content: `${buildContextBlock(context, visualContext)}\n\nThey just said: "${said}"${languageDirective}`,
   });
 
   return messages;

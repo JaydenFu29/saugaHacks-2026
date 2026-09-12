@@ -29,6 +29,7 @@
  * @property {string[]} actions            Actions the user has been asked to take.
  * @property {KnownFacts} knownFacts       Facts newly established this turn (merged in).
  * @property {string|null} [instruction]   The single most important action right now.
+ * @property {string} [language]           BCP-47 tag of `message` — drives voice choice.
  * @property {"mock" | "backend"} source   Where this reply came from — surfaced in the UI.
  * @property {string|null} [audioUrl]      Set when the provider returns generated speech.
  */

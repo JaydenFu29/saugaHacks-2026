@@ -276,16 +276,55 @@ ol { margin: 0; padding: 0; list-style: none; }
   position: relative;
   min-height: 100svh;
   display: flex; flex-direction: column; justify-content: flex-end;
-  padding: calc(var(--nav-h) + 2rem) var(--pad-x) clamp(2rem, 5vh, 3.5rem);
+  /* Bottom padding lifts the stats clear of the fade-out band below them — white text
+     over the white fade would disappear. Keep it >= --hero-fade-h. */
+  padding: calc(var(--nav-h) + 2rem) var(--pad-x) clamp(7.5rem, 20vh, 12rem);
   color: #fff;
   overflow: hidden;
 }
+
+/* Height of the video → page dissolve at the bottom of the hero. */
+.hero { --hero-fade-h: clamp(6rem, 16vh, 10rem); }
+
+/* The dissolve itself. Sits above the video and scrim (z-index 0) but below the hero
+   content (z-index 1), so it never washes over the headline or the stats. */
+.hero::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: var(--hero-fade-h);
+  z-index: 0;
+  pointer-events: none;
+  /* Lands on --ground (#FCFCFA), not #fff — fading to pure white against a warm
+     off-white page leaves a faint but very visible seam at the section join. */
+  background: linear-gradient(
+    to bottom,
+    rgba(252, 252, 250, 0) 0%,
+    rgba(252, 252, 250, 0.35) 38%,
+    rgba(252, 252, 250, 0.75) 66%,
+    rgba(252, 252, 250, 0.94) 85%,
+    var(--ground) 100%
+  );
+}
 .hero__bg { position: absolute; inset: 0; z-index: 0; }
-.hero__bg img { width: 100%; height: 100%; object-fit: cover; }
+.hero__bg img,
+.hero__bg video { width: 100%; height: 100%; object-fit: cover; }
+/* The poster is drawn by the <video> itself, so a failed/blocked load still shows the
+   still frame rather than a black rectangle. */
+.hero__video { display: block; background: var(--ground-2) center / cover no-repeat; }
 .hero__scrim {
   position: absolute; inset: 0;
+  /* Stays dark through the stats band (~78%) for white-text contrast, then clears to
+     transparent by the base so it doesn't grey out the fade-to-page underneath it. */
   background:
-    linear-gradient(to bottom, rgba(9, 20, 25, 0.55) 0%, rgba(9, 20, 25, 0.15) 40%, rgba(9, 20, 25, 0.78) 100%);
+    linear-gradient(
+      to bottom,
+      rgba(9, 20, 25, 0.55) 0%,
+      rgba(9, 20, 25, 0.15) 40%,
+      rgba(9, 20, 25, 0.72) 78%,
+      rgba(9, 20, 25, 0.40) 91%,
+      rgba(9, 20, 25, 0) 100%
+    );
 }
 
 .hero__inner {

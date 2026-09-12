@@ -33,6 +33,9 @@ function serializeRequest(request) {
   const s = request.emergencyContext;
   return {
     userMessage: request.userMessage,
+    // Explicit language choice from the picker. Overrides the backend's script
+    // detection, which cannot tell Polish from English on a one-word first message.
+    preferredLanguage: request.preferredLanguage || "",
     context: {
       sessionId: s.sessionId,
       startTime: s.startTime,
@@ -68,6 +71,9 @@ function normalize(raw) {
     nextStep: raw.nextStep ?? null,
     scenario: raw.scenario ?? null,
     urgency: raw.urgency || "moderate",
+    // BCP-47 tag of `message`. Drives which voice reads it aloud and which language the
+    // microphone transcribes next, so it has to survive normalisation.
+    language: typeof raw.language === "string" && raw.language ? raw.language : "en",
     actions: Array.isArray(raw.actions) ? raw.actions : [],
     knownFacts: raw.knownFacts && typeof raw.knownFacts === "object" ? raw.knownFacts : {},
     source: /** @type {"backend"} */ ("backend"),

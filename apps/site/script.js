@@ -9,6 +9,29 @@
 
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  /* ── Hero background video ───────────────────────────────────────────────
+     CSS cannot stop a video, so reduced-motion has to be handled here: pause it
+     and leave the poster frame showing. Also pause while the tab is hidden —
+     it's a 4K file and there's no reason to decode it off-screen. */
+  var heroVideo = document.querySelector(".hero__video");
+  if (heroVideo) {
+    if (reduced) {
+      heroVideo.removeAttribute("autoplay");
+      heroVideo.pause();
+    } else {
+      // Some browsers reject autoplay until the element is muted in JS as well.
+      heroVideo.muted = true;
+      var playAttempt = heroVideo.play();
+      if (playAttempt && typeof playAttempt.catch === "function") {
+        playAttempt.catch(function () { /* poster stays up — acceptable fallback */ });
+      }
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) heroVideo.pause();
+        else heroVideo.play().catch(function () {});
+      });
+    }
+  }
+
   /* ── Stagger delays: data-delay="2" → 2 × 110ms ──────────────────────── */
   document.querySelectorAll("[data-anim], .hero__title .line").forEach(function (el) {
     var d = el.getAttribute("data-delay");

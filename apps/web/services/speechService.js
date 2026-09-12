@@ -10,7 +10,7 @@
 /**
  * @typedef {Object} SpeechProvider
  * @property {string} name
- * @property {(text: string, cb: {onStart: () => void, onEnd: () => void, onError: (m: string) => void}) => void} speak
+ * @property {(text: string, cb: {onStart: () => void, onEnd: () => void, onError: (m: string) => void}, lang?: string) => void} speak
  * @property {() => void} cancel
  */
 
@@ -21,22 +21,44 @@
 export function createBrowserSpeechProvider() {
   const synth = typeof window !== "undefined" ? window.speechSynthesis : null;
 
-  /** Prefer a natural en voice when the platform offers a choice. */
-  function pickVoice() {
+  /**
+   * Pick the best installed voice for `lang` (a BCP-47 tag from the assistant).
+   *
+   * Matching goes exact ("zh-CN") → same base language ("zh-*") → English → whatever
+   * exists. The base-language step is what matters in practice: a machine with
+   * "zh-TW" installed should still read Chinese rather than falling back to English,
+   * which would render the text as unintelligible noise.
+   *
+   * @param {string} lang
+   */
+  function pickVoice(lang) {
     if (!synth || typeof synth.getVoices !== "function") return null;
     const voices = synth.getVoices() || [];
     if (!voices.length) return null;
-    return (
-      voices.find((v) => /en-(US|GB)/i.test(v.lang) && /natural|samantha|google/i.test(v.name)) ||
-      voices.find((v) => /^en/i.test(v.lang)) ||
-      voices[0]
-    );
+
+    const tag = String(lang || "en").toLowerCase();
+    const base = tag.split("-")[0];
+    const norm = (v) => String(v.lang || "").toLowerCase().replace("_", "-");
+
+    const exact = voices.filter((v) => norm(v) === tag);
+    const sameBase = voices.filter((v) => norm(v).split("-")[0] === base);
+
+    // Prefer a higher-quality voice within whichever tier matched.
+    const nicest = (list) =>
+      list.find((v) => /natural|neural|premium|enhanced|google/i.test(v.name)) || list[0];
+
+    if (exact.length) return nicest(exact);
+    if (sameBase.length) return nicest(sameBase);
+
+    const english = voices.filter((v) => norm(v).split("-")[0] === "en");
+    if (english.length) return nicest(english);
+    return voices[0];
   }
 
   return {
     name: "browser-speech-synthesis",
 
-    speak(text, cb) {
+    speak(text, cb, lang) {
       if (!synth || typeof window.SpeechSynthesisUtterance !== "function") {
         cb.onError("Speech synthesis is not available in this browser.");
         return;
@@ -45,9 +67,11 @@ export function createBrowserSpeechProvider() {
       try {
         synth.cancel(); // never queue up: the newest instruction is the only relevant one
         const u = new window.SpeechSynthesisUtterance(text);
-        const voice = pickVoice();
+        const voice = pickVoice(lang);
         if (voice) u.voice = voice;
-        u.lang = (voice && voice.lang) || "en-US";
+        // Set the requested language even when no matching voice is installed — some
+        // engines can still synthesise from the tag alone.
+        u.lang = (voice && voice.lang) || lang || "en-US";
         u.rate = 0.95; // marginally slower — this is being followed under stress
         u.pitch = 1;
 
@@ -119,12 +143,12 @@ export function createRemoteSpeechProvider(endpoint) {
   return {
     name: "remote-ai-voice",
 
-    async speak(text, cb) {
+    async speak(text, cb, lang) {
       try {
         const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, lang: lang || "en" }),
         });
         if (!res.ok) throw new Error(`Speech endpoint returned ${res.status}`);
         const blob = await res.blob();
@@ -151,6 +175,7 @@ export function createSpeechService(provider = createBrowserSpeechProvider()) {
   let muted = false;
   let speaking = false;
   let lastText = "";
+  let lastLang = "en";
   let lastError = "";
 
   const handlers = {
@@ -166,21 +191,27 @@ export function createSpeechService(provider = createBrowserSpeechProvider()) {
 
   /**
    * @param {string} text
+   * @param {string} [lang] BCP-47 tag of `text`, from the assistant's `language` field
    * @returns {boolean} whether audio was actually started
    */
-  function speak(text) {
+  function speak(text, lang) {
     lastText = text;
+    if (lang) lastLang = lang;
     lastError = "";
     if (muted || !text) return false;
 
-    provider.speak(text, {
-      onStart: () => setSpeaking(true),
-      onEnd: () => setSpeaking(false),
-      onError: (m) => {
-        lastError = m;
-        setSpeaking(false);
+    provider.speak(
+      text,
+      {
+        onStart: () => setSpeaking(true),
+        onEnd: () => setSpeaking(false),
+        onError: (m) => {
+          lastError = m;
+          setSpeaking(false);
+        },
       },
-    });
+      lastLang
+    );
     return true;
   }
 
@@ -192,11 +223,13 @@ export function createSpeechService(provider = createBrowserSpeechProvider()) {
   return {
     speak,
     stop,
-    /** Re-speak the most recent assistant message. */
+    /** Re-speak the most recent assistant message, in the language it was written in. */
     replayLast() {
       if (!lastText || muted) return false;
-      return speak(lastText);
+      return speak(lastText, lastLang);
     },
+    /** BCP-47 tag of the last thing spoken — the recognizer follows this. */
+    lastLanguage: () => lastLang,
     /** @param {boolean} v */
     setMuted(v) {
       muted = v;

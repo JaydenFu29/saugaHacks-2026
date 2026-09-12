@@ -329,6 +329,23 @@ a { color: var(--teal); }
   50%      { opacity: 0.55; transform: scale(0.92); }
 }
 
+/* Language picker — deliberately quiet. It matters a great deal to the handful of users
+   who need it and should not compete with the mic button for anyone else. */
+.langpick {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  background: var(--ink-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.langpick:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+/* Native option lists render on the OS surface, which is light on most platforms. */
+.langpick option { background: #fff; color: #111; }
+
 .composer { display: flex; gap: 6px; }
 .composer__input {
   flex: 1; min-width: 0;

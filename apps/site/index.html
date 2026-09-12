@@ -62,7 +62,17 @@
   <!-- ───────────────────────── HERO ───────────────────────── -->
   <section class="hero">
     <div class="hero__bg">
-      <img src="assets/hero.svg" alt="" aria-hidden="true">
+      <!-- Poster paints immediately and stays visible until the video can play, so the
+           hero is never a blank box on a slow connection. `playsinline` keeps iOS from
+           hijacking it into fullscreen; `muted` is what makes autoplay legal at all. -->
+      <video
+        class="hero__video"
+        src="assets/hero.mp4"
+        poster="assets/hero-poster.jpg"
+        autoplay muted loop playsinline
+        preload="metadata"
+        aria-hidden="true"
+        tabindex="-1"></video>
       <div class="hero__scrim"></div>
     </div>
 
@@ -88,7 +98,7 @@
         <p class="stat__label">Guided protocols</p>
       </div>
       <div class="stat">
-        <h2 class="stat__num" data-count="30" data-suffix="+">0</h2>
+        <h2 class="stat__num" data-count="15" data-suffix="+">0</h2>
         <p class="stat__label">Languages spoken</p>
       </div>
       <div class="stat">
@@ -126,10 +136,14 @@
       <!-- Sticky media column: swaps as each step scrolls into view -->
       <div class="how__media">
         <div class="how__media-inner">
-          <img class="how__img is-active" src="assets/step-01.svg" alt="" data-step="1">
-          <img class="how__img" src="assets/step-02.svg" alt="" data-step="2">
-          <img class="how__img" src="assets/step-03.svg" alt="" data-step="3">
-          <img class="how__img" src="assets/step-04.svg" alt="" data-step="4">
+          <img class="how__img is-active" src="assets/step-01-assessment.jpg"
+               alt="A first-aid kit laid open, ready to use." data-step="1">
+          <img class="how__img" src="assets/step-02-translate.jpg"
+               alt="A first-aid training session in progress." data-step="2" loading="lazy">
+          <img class="how__img" src="assets/step-03-guided-action.jpg"
+               alt="Hands practising a guided first-aid technique." data-step="3" loading="lazy">
+          <img class="how__img" src="assets/step-04-handoff.png"
+               alt="An ambulance responding to a call." data-step="4" loading="lazy">
           <svg class="how__mark" viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="9"  cy="6"  r="1.7"/><circle cx="15" cy="6"  r="1.7"/>
             <circle cx="9"  cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/>
@@ -182,7 +196,7 @@
     <div class="caps__grid">
       <article class="cap" data-anim="rise">
         <h3 class="cap__title">Live<br>Translation</h3>
-        <p class="cap__text">Two-way speech in 30+ languages, so language is never the reason help
+        <p class="cap__text">Two-way speech in 15+ languages, so language is never the reason help
           arrives late.</p>
       </article>
       <article class="cap" data-anim="rise" data-delay="1">

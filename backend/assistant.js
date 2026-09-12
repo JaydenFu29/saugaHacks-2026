@@ -3,7 +3,7 @@
  * browser already expects (see apps/web/types/ai.js).
  */
 
-import { buildMessages } from "./prompt.js";
+import { buildMessages, detectScript } from "./prompt.js";
 import { chatCompletion } from "./featherless.js";
 
 const URGENCIES = ["low", "moderate", "high", "critical"];
@@ -118,6 +118,67 @@ function enforceUrgency(urgency, haystack) {
 }
 
 /**
+ * @param {unknown} claimed  the model's own "language" field
+ * @param {string} message   the reply text
+ * @param {string} userText  what the user just said
+ */
+function resolveLanguage(claimed, message, userText, preferred) {
+  // A non-Latin script in the reply is hard evidence and outranks a claimed tag, since a
+  // model that writes Chinese but labels it "en" would silently break the voice.
+  const fromReply = detectScript(message);
+  if (fromReply) return fromReply.tag;
+
+  // Reply is Latin-script, where detection is useless. An explicit pick from the UI is
+  // more trustworthy than the model's self-report: it was told to answer in this
+  // language, and it cannot mislabel Polish as English if we never ask it.
+  if (preferred) return preferred;
+
+  if (typeof claimed === "string") {
+    const tag = claimed.trim();
+    // Shape check only — a full BCP-47 registry is overkill here.
+    if (/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(tag)) return tag;
+  }
+
+  // Reply is Latin-script and the model gave nothing usable: if the USER wrote in another
+  // script, the reply is in the wrong language anyway — report theirs so the UI can tell.
+  const fromUser = detectScript(String(userText || ""));
+  return (fromUser && fromUser.tag) || "en";
+}
+
+/**
+ * The forced 911 reminder has to be in the same language as the reply it is prefixed to.
+ * Covers the languages most likely at a Mississauga demo; anything else gets English,
+ * which is still better than dropping the reminder entirely.
+ */
+const CALL_PROMPT = {
+  en: "Call 911 now if you have not already.",
+  es: "Llama al 911 ahora si aún no lo has hecho.",
+  fr: "Appelez le 911 tout de suite si ce n'est pas déjà fait.",
+  pt: "Ligue para o 911 agora, se ainda não ligou.",
+  "zh-CN": "如果还没有打，请立即拨打911。",
+  ja: "まだなら、今すぐ911に電話してください。",
+  ko: "아직 하지 않았다면 지금 바로 911에 전화하세요.",
+  hi: "अगर अभी तक नहीं किया है, तो तुरंत 911 पर कॉल करें।",
+  ar: "اتصل بالرقم 911 الآن إن لم تكن قد فعلت ذلك.",
+  ru: "Если ещё не позвонили, немедленно звоните 911.",
+  ur: "اگر ابھی تک نہیں کیا تو فوراً 911 پر کال کریں۔",
+  tl: "Tumawag sa 911 ngayon kung hindi mo pa nagagawa.",
+  // Added for Peel Region's largest language communities.
+  pa: "ਜੇ ਤੁਸੀਂ ਅਜੇ ਤੱਕ ਨਹੀਂ ਕੀਤਾ, ਤਾਂ ਹੁਣੇ 911 'ਤੇ ਕਾਲ ਕਰੋ।",
+  ta: "இன்னும் அழைக்கவில்லை என்றால், உடனே 911 ஐ அழையுங்கள்.",
+  gu: "જો હજી સુધી ન કર્યું હોય, તો તરત જ 911 પર કૉલ કરો.",
+  bn: "এখনও না করে থাকলে এখনই 911 নম্বরে ফোন করুন।",
+  vi: "Hãy gọi 911 ngay bây giờ nếu bạn chưa gọi.",
+  pl: "Zadzwoń teraz pod 911, jeśli jeszcze tego nie zrobiłeś.",
+  fa: "اگر هنوز تماس نگرفته‌اید، همین حالا با 911 تماس بگیرید.",
+};
+
+function callPrompt(language) {
+  const tag = String(language || "en");
+  return CALL_PROMPT[tag] || CALL_PROMPT[tag.split("-")[0]] || CALL_PROMPT.en;
+}
+
+/**
  * @param {{userMessage: string, context: any, visualContext: any}} payload
  * @returns {Promise<any>} AIResponse-shaped object
  */
@@ -162,12 +223,24 @@ export async function generateResponse(payload) {
 
   const urgency = enforceUrgency(obj.urgency, haystack);
 
+  // Which language the reply is actually in. The model reports it; script detection is
+  // the fallback, because the frontend picks its text-to-speech voice from this and a
+  // wrong tag means the user hears their own language in a foreign accent, or silence.
+  const language = resolveLanguage(
+    obj.language,
+    message,
+    payload.userMessage,
+    payload.preferredLanguage
+  );
+
   // While the scene is critical and no call is confirmed, re-raise it every single turn.
   // The model reliably says it once on turn 1 and then never mentions it again.
+  // "911" stays as digits in every language (the prompt requires it), so this test works
+  // regardless of what language `message` is written in.
   const called = knownFacts.emergencyServicesCalled ?? priorCalled;
   const finalMessage =
     urgency === "critical" && called !== "yes" && !/\b911\b/.test(message)
-      ? `Call 911 now if you have not already. ${message}`
+      ? `${callPrompt(language)} ${message}`
       : message;
 
   const newActions = Array.isArray(obj.actions)
@@ -184,6 +257,7 @@ export async function generateResponse(payload) {
         ? obj.scenario
         : null) || context.scenario || null,
     urgency,
+    language,
     actions: [...new Set([...(context.actionsTaken || []), ...newActions])],
     knownFacts,
     source: "backend",
